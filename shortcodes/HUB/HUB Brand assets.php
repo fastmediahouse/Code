@@ -226,3 +226,4 @@ add_shortcode('fastmedia_brand_assets', function () {
     <?php
     return ob_get_clean();
 });
+// minor update
