@@ -22,10 +22,7 @@ add_shortcode('fastmedia_hub_tabs', function () {
     </div>
 
     <style>
-    .fastmedia-topnav-layout { 
-        padding: 0; 
-        background: #fff; /* No background */
-    }
+    .fastmedia-topnav-layout { padding: 0; background: #f9f9f9; }
 
     .fm-topbar { 
         display: flex; 
@@ -52,7 +49,7 @@ add_shortcode('fastmedia_hub_tabs', function () {
         justify-content: space-between; 
         gap: 16px; 
         padding: 16px; 
-        background: #f8f8f8; 
+        background: #fff; 
         overflow-x: auto; 
         -webkit-overflow-scrolling: touch; 
         scroll-snap-type: x mandatory;
@@ -62,25 +59,25 @@ add_shortcode('fastmedia_hub_tabs', function () {
         display: flex; 
         align-items: center; 
         gap: 8px; 
-        padding: 10px 16px; 
+        padding: 8px 14px; /* Reduced padding for better fit */
         background: #fff; 
         border-radius: 8px; 
         border: 1px solid #ccc; 
         cursor: pointer; 
         transition: all 0.2s ease; 
-        font-size: 14px; 
+        font-size: 13px; /* Reduced font size */
         font-weight: 500; 
         text-decoration: none; 
         color: inherit;
     }
 
     .fm-tab-box i {
-        font-size: 18px; /* Larger icons for better visibility */
+        font-size: 16px; /* Slightly smaller icon size */
         color: #000; /* Black icons */
     }
 
     .fm-tab-box:hover { 
-        background: #e0e0e0; /* Light grey hover effect */
+        background: #f0f0f0; /* Light grey hover effect */
     }
 
     @media (max-width: 768px) {
