@@ -1,365 +1,336 @@
-// Add this to your theme's functions.php file or plugin
+add_shortcode('fastmedia_asset_detail', function () {
+  if (!is_user_logged_in()) return '<p>Please <a href="/signin/">sign in</a> to view this page.</p>';
 
-// Handle watermarked comp download
-add_action('wp_ajax_fastmedia_comp_download', 'fastmedia_comp_download_handler');
-add_action('wp_ajax_nopriv_fastmedia_comp_download', 'fastmedia_comp_download_handler');
+  $user_id = get_current_user_id();
+  $attachment_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+  if (!$attachment_id || get_post_field('post_author', $attachment_id) != $user_id) return '<p>Asset not found.</p>';
 
-// Handle resize downloads
-add_action('wp_ajax_fastmedia_resize_download', 'fastmedia_resize_download_handler');
-add_action('wp_ajax_nopriv_fastmedia_resize_download', 'fastmedia_resize_download_handler');
+  $image_url = wp_get_attachment_url($attachment_id);
+  $meta = wp_get_attachment_metadata($attachment_id);
+  $selected_labels = get_field('fastmedia_asset_labels', $attachment_id) ?: [];
+  $is_brand_approved = get_field('fastmedia_brand_approved', $attachment_id);
+  $activity_log = get_post_meta($attachment_id, 'fastmedia_activity_log');
+  $label_map = [
+    'ST' => 'Stock Image', 'UP' => 'User Upload', 'BR' => 'Brand Approved',
+    'LO' => 'Logo', 'FI' => 'Final Approved', 'PH' => 'Photography',
+    'VI' => 'Video', 'VC' => 'Vector', 'AI' => 'AI Generated'
+  ];
 
-// Handle new project creation
-add_action('wp_ajax_create_new_project', 'fastmedia_create_new_project_handler');
-add_action('wp_ajax_nopriv_create_new_project', 'fastmedia_create_new_project_handler');
+  // 🔍 Detect and permanently set fixed labels
+  $source = get_post_meta($attachment_id, 'source', true);
+  if ($source === 'solwee' && !in_array('ST', $selected_labels)) {
+    $selected_labels[] = 'ST';
+    update_field('fastmedia_asset_labels', $selected_labels, $attachment_id);
+  }
+  if ($source !== 'solwee' && !in_array('UP', $selected_labels)) {
+    $selected_labels[] = 'UP';
+    update_field('fastmedia_asset_labels', $selected_labels, $attachment_id);
+  }
 
-function fastmedia_comp_download_handler() {
-    // Check if user is logged in first
-    if (!is_user_logged_in()) {
-        wp_die('Please log in to download files.', 'Login Required', array('response' => 401));
-    }
-    
-    $attachment_id = intval($_GET['id']);
-    $user_id = get_current_user_id();
-    
-    // Security check - allow if user owns the image
-    if (!$attachment_id || get_post_field('post_author', $attachment_id) != $user_id) {
-        wp_die('You do not have permission to download this file.', 'Access Denied', array('response' => 403));
-    }
-    
-    $file_path = get_attached_file($attachment_id);
-    if (!file_exists($file_path)) {
-        wp_die('File not found on server.', 'File Not Found', array('response' => 404));
-    }
-    
-    // Create watermarked image
-    $watermarked_image = fastmedia_create_watermarked_image($file_path, $attachment_id);
-    
-    if ($watermarked_image && file_exists($watermarked_image)) {
-        // Get original filename without extension
-        $original_name = pathinfo(basename($file_path), PATHINFO_FILENAME);
-        $filename = 'COMP_' . $original_name . '.jpg';
-        
-        // Clear any output buffers
-        if (ob_get_level()) {
-            ob_end_clean();
-        }
-        
-        // Set proper headers for download
-        header('Content-Type: image/jpeg');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Content-Length: ' . filesize($watermarked_image));
-        header('Cache-Control: no-cache, must-revalidate');
-        header('Expires: 0');
-        header('Pragma: public');
-        
-        // Output the watermarked image
-        readfile($watermarked_image);
-        
-        // Clean up temporary file
-        unlink($watermarked_image);
-    } else {
-        wp_die('Unable to create watermarked version. Please try again.', 'Processing Error', array('response' => 500));
-    }
-    
-    exit;
-}
+  ob_start();
+?>
+<style>
+  .label-icon-grid { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  .label-icon { font-size: 12px; font-weight: bold; padding: 4px 8px; border-radius: 4px; color: white; cursor: pointer; }
+  .label-ST { background: #0073aa; } .label-UP { background: #00a65a; } .label-BR { background: #000; }
+  .label-LO { background: #ff7700; } .label-FI { background: #e6b800; } .label-PH { background: #008080; }
+  .label-VI { background: #7a4dc9; } .label-VC { background: #c62828; } .label-AI { background: #444; }
 
-function fastmedia_resize_download_handler() {
-    $attachment_id = intval($_GET['id']);
-    $size = sanitize_text_field($_GET['size']);
-    $user_id = get_current_user_id();
-    
-    // Security check
-    if (!is_user_logged_in() || !$attachment_id || get_post_field('post_author', $attachment_id) != $user_id) {
-        wp_die('Access denied', 'Unauthorized', array('response' => 403));
-    }
-    
-    $file_path = get_attached_file($attachment_id);
-    if (!file_exists($file_path)) {
-        wp_die('File not found', 'Not Found', array('response' => 404));
-    }
-    
-    // Set size limits
-    $size_limits = [
-        'large' => 1920,
-        'medium' => 1200,
-        'small' => 800
-    ];
-    
-    if (!isset($size_limits[$size])) {
-        wp_die('Invalid size parameter', 'Bad Request', array('response' => 400));
-    }
-    
-    // Create resized image
-    $resized_image = fastmedia_create_resized_image($file_path, $attachment_id, $size_limits[$size]);
-    
-    if ($resized_image && file_exists($resized_image)) {
-        // Set headers for download
-        $filename = strtoupper($size) . '_' . basename($file_path);
-        
-        header('Content-Type: ' . mime_content_type($resized_image));
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Content-Length: ' . filesize($resized_image));
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        
-        // Output the resized image
-        readfile($resized_image);
-        
-        // Clean up temporary file
-        unlink($resized_image);
-    } else {
-        wp_die('Error creating resized image', 'Server Error', array('response' => 500));
-    }
-    
-    exit;
-}
+  .dropdown-labels { position: relative; }
+  .dropdown-labels button {
+    padding: 6px 12px; border: 1px solid #ccc; background: #fff; border-radius: 4px;
+    cursor: pointer; color: black; font-weight: 600;
+  }
+  .dropdown-labels .dropdown-content {
+    display: none; position: absolute; top: 100%; left: 0;
+    background: #fff; border: 1px solid #ccc; padding: 10px;
+    z-index: 10; border-radius: 6px; min-width: 200px; color: black;
+  }
+  .dropdown-labels:hover .dropdown-content { display: block; }
+  .dropdown-content label {
+    display: flex; align-items: center; font-size: 14px; gap: 6px;
+    margin-bottom: 6px; color: black;
+  }
 
-function fastmedia_create_resized_image($source_path, $attachment_id, $max_size) {
-    // Get image info
-    $image_info = getimagesize($source_path);
-    if (!$image_info) return false;
-    
-    $mime_type = $image_info['mime'];
-    $width = $image_info[0];
-    $height = $image_info[1];
-    
-    // Create image resource from source
-    switch ($mime_type) {
-        case 'image/jpeg':
-            $source_image = imagecreatefromjpeg($source_path);
-            break;
-        case 'image/png':
-            $source_image = imagecreatefrompng($source_path);
-            break;
-        case 'image/gif':
-            $source_image = imagecreatefromgif($source_path);
-            break;
-        default:
-            return false;
-    }
-    
-    if (!$source_image) return false;
-    
-    // Calculate new dimensions
-    if ($width <= $max_size && $height <= $max_size) {
-        // Image is already smaller than target, just copy it
-        $new_width = $width;
-        $new_height = $height;
-    } else {
-        // Resize to fit within max_size
-        if ($width > $height) {
-            $new_width = $max_size;
-            $new_height = ($height * $max_size) / $width;
-        } else {
-            $new_height = $max_size;
-            $new_width = ($width * $max_size) / $height;
-        }
-    }
-    
-    // Create new image
-    $resized_image = imagecreatetruecolor($new_width, $new_height);
-    
-    // Preserve transparency for PNG
-    if ($mime_type == 'image/png') {
-        imagealphablending($resized_image, false);
-        imagesavealpha($resized_image, true);
-        $transparent = imagecolorallocatealpha($resized_image, 255, 255, 255, 127);
-        imagefill($resized_image, 0, 0, $transparent);
-    }
-    
-    // Resize image
-    imagecopyresampled($resized_image, $source_image, 0, 0, 0, 0, $new_width, $new_height, $width, $height);
-    
-    // Create temporary file
-    $temp_file = wp_tempnam('fastmedia_resize_');
-    
-    // Save resized image
-    $success = false;
-    if ($mime_type == 'image/png') {
-        $success = imagepng($resized_image, $temp_file, 8); // PNG compression
-    } else {
-        $success = imagejpeg($resized_image, $temp_file, 92); // High quality JPEG
-    }
-    
-    // Clean up memory
-    imagedestroy($source_image);
-    imagedestroy($resized_image);
-    
-    return $success ? $temp_file : false;
-}
+  .tool-tile-grid { display: grid; grid-template-columns: repeat(2, minmax(100px, 1fr)); gap: 10px; margin-top: 10px; margin-bottom: 5px; }
+  .tool-tile-grid a {
+    color: green; font-weight: bold; text-decoration: none;
+    background: #f5f5f5; padding: 8px 10px; border-radius: 6px; text-align: center;
+  }
 
-function fastmedia_create_new_project_handler() {
-    if (!is_user_logged_in()) {
-        wp_send_json_error('Access denied');
-    }
-    
-    $project_name = sanitize_text_field($_POST['project_name']);
-    $attachment_id = intval($_POST['attachment_id']);
-    
-    if (empty($project_name)) {
-        wp_send_json_error('Project name is required');
-    }
-    
-    // Create new project post
-    $project_id = wp_insert_post([
-        'post_title' => $project_name,
-        'post_type' => 'projects',
-        'post_status' => 'publish',
-        'post_author' => get_current_user_id()
-    ]);
-    
-    if (is_wp_error($project_id)) {
-        wp_send_json_error('Failed to create project');
-    }
-    
-    // Assign attachment to new project
-    update_post_meta($attachment_id, 'fastmedia_project', $project_id);
-    
-    wp_send_json_success([
-        'project_id' => $project_id,
-        'project_name' => $project_name
-    ]);
-}
+  .readonly input, .readonly textarea, .readonly select { background: #f5f5f5; pointer-events: none; }
 
-function fastmedia_create_watermarked_image($source_path, $attachment_id) {
-    // Get image info
-    $image_info = getimagesize($source_path);
-    if (!$image_info) return false;
-    
-    $mime_type = $image_info['mime'];
-    $width = $image_info[0];
-    $height = $image_info[1];
-    
-    // Create image resource from source
-    switch ($mime_type) {
-        case 'image/jpeg':
-            $source_image = imagecreatefromjpeg($source_path);
-            break;
-        case 'image/png':
-            $source_image = imagecreatefrompng($source_path);
-            break;
-        case 'image/gif':
-            $source_image = imagecreatefromgif($source_path);
-            break;
-        default:
-            return false;
-    }
-    
-    if (!$source_image) return false;
-    
-    // Resize to comp size (max 1200px on longest side)
-    $max_comp_size = 1200;
-    if ($width > $height) {
-        $new_width = min($width, $max_comp_size);
-        $new_height = ($height * $new_width) / $width;
-    } else {
-        $new_height = min($height, $max_comp_size);
-        $new_width = ($width * $new_height) / $height;
-    }
-    
-    // Create new image with comp dimensions
-    $comp_image = imagecreatetruecolor($new_width, $new_height);
-    
-    // Preserve transparency for PNG
-    if ($mime_type == 'image/png') {
-        imagealphablending($comp_image, false);
-        imagesavealpha($comp_image, true);
-        $transparent = imagecolorallocatealpha($comp_image, 255, 255, 255, 127);
-        imagefill($comp_image, 0, 0, $transparent);
-    }
-    
-    // Resize source image to comp size
-    imagecopyresampled($comp_image, $source_image, 0, 0, 0, 0, $new_width, $new_height, $width, $height);
-    
-    // Add Fast Media logo watermark
-    $logo_urls = [
-        'https://fastmediahouse.com/wp-content/uploads/2025/02/Black-logo-no-background-scaled.png', // Black transparent
-        'https://fastmediahouse.com/wp-content/uploads/2025/07/Color-logo-with-background-scaled.webp'  // Color with background
-    ];
-    
-    $logo_added = false;
-    
-    // Try to use the black transparent logo first
-    foreach ($logo_urls as $logo_url) {
-        $logo_data = wp_remote_get($logo_url);
-        if (!is_wp_error($logo_data) && wp_remote_retrieve_response_code($logo_data) == 200) {
-            $logo_content = wp_remote_retrieve_body($logo_data);
+  .acf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  .acf-grid label { font-weight: 600; font-size: 13px; margin-bottom: 4px; display: block; }
+  .acf-grid input, .acf-grid textarea, .acf-grid select {
+    width: 100%; padding: 6px 8px; border: 1px solid #ccc;
+    border-radius: 4px; font-size: 14px; background: #f9f9f9;
+  }
+
+  #edit-toggle-btn { 
+    margin-left: 10px !important; padding: 6px 12px !important; background: #fff !important; 
+    border: 1px solid #ccc !important; border-radius: 4px !important; cursor: pointer !important; 
+    color: #333 !important; font-weight: normal !important; font-size: 14px !important;
+    display: inline-block !important; vertical-align: middle !important;
+  }
+  #save-acf-btn { margin-top: 15px; padding: 8px 20px; background: #0073aa; color: #fff; border: none; border-radius: 4px; display: none; }
+
+  /* Fixed: Asset ID title to match Editing Tools styling */
+  .asset-detail-container .asset-id-title { 
+    font-size: 18px !important; 
+    font-weight: bold !important; 
+    color: #333 !important; 
+    margin: 0 0 10px 0 !important; 
+  }
+  .asset-detail-container .image-number { 
+    font-size: 18px !important; 
+    font-weight: normal !important; 
+    color: #333 !important; 
+  }
+
+  .download-section h4 { font-size: 16px !important; margin-bottom: 10px !important; }
+
+  .download-buttons { display: flex !important; flex-wrap: wrap !important; gap: 10px !important; margin-bottom: 15px !important; }
+  .download-button {
+    background: #0073aa !important; color: white !important; padding: 8px 12px !important; text-decoration: none !important;
+    border-radius: 5px !important; font-weight: bold !important; display: inline-block !important;
+  }
+  .download-button.comp {
+    background: #ff6b35 !important; /* Orange color for watermarked comp */
+  }
+
+  .asset-detail-container .acf-grid button {
+    font-size: 14px !important; background: #f5f5f5 !important; padding: 6px 12px !important; border-radius: 4px !important;
+    border: 1px solid #ccc !important; font-weight: normal !important;
+  }
+
+  /* Fixed: Activity Log button minimized to simple title */
+  .asset-detail-container .activity-log-title {
+    font-size: 14px !important; font-weight: bold !important; margin-bottom: 8px !important; 
+    color: #333 !important; cursor: pointer !important; text-decoration: underline !important;
+  }
+  .asset-detail-container .activity-log-title:hover {
+    color: #0073aa !important;
+  }
+
+  .activity-log-list { font-size: 13px !important; padding-left: 18px !important; color: #444 !important; }
+  .no-activity { font-size: 13px !important; color: #888 !important; margin-top: 5px !important; }
+
+  /* Fixed: Added cursor pointer for action icons */
+  .action-icon { 
+    cursor: pointer !important; 
+    padding: 4px 8px !important; 
+    border-radius: 4px !important; 
+    background: #f5f5f5 !important; 
+    border: 1px solid #ddd !important;
+  }
+  .action-icon:hover { 
+    background: #e0e0e0 !important; 
+  }
+</style>
+
+<div class="asset-detail-container" style="display:flex; gap:40px; flex-wrap:wrap;">
+  <div style="flex:1; min-width:300px;">
+    <form method="post">
+      <h3 class="asset-id-title">Asset ID: <span class="image-number"><?= esc_html(get_the_title($attachment_id)) ?></span></h3>
+      <img id="asset-img" src="<?= esc_url($image_url) ?>" style="width:100%; border-radius:10px;" alt="Preview" crossorigin="anonymous">
+
+      <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div class="label-icon-grid">
+          <?php foreach ($selected_labels as $code): ?>
+            <div class="label-icon label-<?= esc_attr($code) ?>" title="<?= esc_attr($label_map[$code]) ?>"><?= esc_html($code) ?></div>
+          <?php endforeach; ?>
+        </div>
+
+        <div class="dropdown-labels">
+          <button type="button">Labels</button>
+          <div class="dropdown-content">
+            <?php foreach ($label_map as $code => $desc):
+              $checked = in_array($code, $selected_labels) ? 'checked' : '';
+              $disabled = in_array($code, ['ST', 'UP']) ? 'disabled' : '';
+            ?>
+              <label title="<?= esc_attr($desc) ?>">
+                <input type="checkbox" name="acf_edit_labels[]" value="<?= esc_attr($code) ?>" <?= $checked ?> <?= $disabled ?>> <?= esc_html($code) ?>
+              </label>
+            <?php endforeach; ?>
+            <button type="submit" name="save_acf_fields" style="margin-top:8px;">💾 Save</button>
+          </div>
+        </div>
+
+        <?php if (!in_array('BR', $selected_labels)): ?>
+          <button name="suggest_brand" value="1" style="padding:6px 10px; background:#000; color:white; border-radius:4px;">Suggest for Brand</button>
+        <?php else: ?>
+          <span style="padding:6px 10px; background:#999; color:white; border-radius:4px;">
+            <?= $is_brand_approved ? '✅ Brand Approved' : '⏳ Pending Review' ?>
+          </span>
+        <?php endif; ?>
+
+        <div class="action-icon" onclick="prompt('Share this link:', window.location.href)" title="Share this image">🔗</div>
+        <div class="action-icon" onclick="launchAnnotation()" title="Annotate image">🖍️</div>
+        <div class="action-icon" onclick="confirmDelete(<?= $attachment_id ?>)" title="Delete this image">🗑️</div>
+      </div>
+
+      <?= fastmedia_project_toggle_ui($attachment_id) ?>
+
+      <p style="margin-top:15px;"><strong>File Type:</strong> <?= esc_html($meta['mime_type'] ?? get_post_mime_type($attachment_id)) ?></p>
+      <p><strong>Dimensions:</strong> <?= esc_html($meta['width'] ?? '') ?> × <?= esc_html($meta['height'] ?? '') ?> px</p>
+      <p><strong>Date Uploaded:</strong> <?= esc_html(get_the_date('', $attachment_id)) ?></p>
+
+      <div class="download-section">
+        <h4>📥 Download Highres</h4>
+        <div class="download-buttons">
+          <?php
+            $full_url = wp_get_attachment_url($attachment_id);
+            $full_size = file_exists(get_attached_file($attachment_id)) ? filesize(get_attached_file($attachment_id)) / 1024 / 1024 : 0;
+            $img_info = getimagesize(get_attached_file($attachment_id));
+            echo '<a href="' . esc_url($full_url) . '" class="download-button" download>FULL — ' . $img_info[0] . '×' . $img_info[1] . ' px (' . round($full_size, 2) . ' MB)</a>';
             
-            // Create temporary file for logo
-            $temp_logo = wp_tempnam('fastmedia_logo_');
-            file_put_contents($temp_logo, $logo_content);
+            // Add watermarked comp download with different color
+            $comp_url = FastMedia_Download_Handlers::get_comp_download_url($attachment_id);
+            echo '<a href="' . esc_url($comp_url) . '" class="download-button comp" download>COMP — Watermarked Preview</a>';
             
-            // Load logo based on file type
-            if (strpos($logo_url, '.webp') !== false) {
-                $logo = imagecreatefromwebp($temp_logo);
-            } else {
-                $logo = imagecreatefrompng($temp_logo);
-            }
+            // Add dynamic resize downloads
+            $large_url = FastMedia_Download_Handlers::get_resize_download_url($attachment_id, 'large');
+            $medium_url = FastMedia_Download_Handlers::get_resize_download_url($attachment_id, 'medium');
+            $small_url = FastMedia_Download_Handlers::get_resize_download_url($attachment_id, 'small');
             
-            if ($logo) {
-                $logo_width = imagesx($logo);
-                $logo_height = imagesy($logo);
-                
-                // Calculate logo size (20% of image width, max 300px)
-                $watermark_width = min($new_width * 0.2, 300);
-                $watermark_height = ($logo_height * $watermark_width) / $logo_width;
-                
-                // Create resized logo with transparency
-                $resized_logo = imagecreatetruecolor($watermark_width, $watermark_height);
-                imagealphablending($resized_logo, false);
-                imagesavealpha($resized_logo, true);
-                $transparent = imagecolorallocatealpha($resized_logo, 255, 255, 255, 127);
-                imagefill($resized_logo, 0, 0, $transparent);
-                
-                // Resize logo
-                imagecopyresampled($resized_logo, $logo, 0, 0, 0, 0, $watermark_width, $watermark_height, $logo_width, $logo_height);
-                
-                // Position logo (center)
-                $logo_x = ($new_width - $watermark_width) / 2;
-                $logo_y = ($new_height - $watermark_height) / 2;
-                
-                // Add logo with transparency (50% opacity)
-                imagecopymerge($comp_image, $resized_logo, $logo_x, $logo_y, 0, 0, $watermark_width, $watermark_height, 50);
-                
-                // Clean up
-                imagedestroy($logo);
-                imagedestroy($resized_logo);
-                unlink($temp_logo);
-                
-                $logo_added = true;
-                break; // Success, exit loop
-            }
-            
-            unlink($temp_logo);
-        }
-    }
-    
-    // Fallback to text watermark if logo loading failed
-    if (!$logo_added) {
-        $watermark_text = "FAST MEDIA";
-        $font_size = max(24, $new_width / 30);
-        $watermark_color = imagecolorallocatealpha($comp_image, 255, 255, 255, 80);
-        $shadow_color = imagecolorallocatealpha($comp_image, 0, 0, 0, 50);
-        
-        $text_width = strlen($watermark_text) * ($font_size / 2);
-        $x = ($new_width - $text_width) / 2;
-        $y = ($new_height) / 2;
-        
-        // Add shadow and text
-        imagestring($comp_image, 5, $x + 2, $y + 2, $watermark_text, $shadow_color);
-        imagestring($comp_image, 5, $x, $y, $watermark_text, $watermark_color);
-    }
-    
-    // Create temporary file
-    $temp_file = wp_tempnam('fastmedia_comp_');
-    
-    // Save watermarked image
-    $success = imagejpeg($comp_image, $temp_file, 85); // 85% quality for comp
-    
-    // Clean up memory
-    imagedestroy($source_image);
-    imagedestroy($comp_image);
-    
-    return $success ? $temp_file : false;
+            echo '<a href="' . esc_url($large_url) . '" class="download-button" download>LARGE — 1920px</a>';
+            echo '<a href="' . esc_url($medium_url) . '" class="download-button" download>MEDIUM — 1200px</a>';
+            echo '<a href="' . esc_url($small_url) . '" class="download-button" download>SMALL — 800px</a>';
+          ?>
+        </div>
+
+        <div class="activity-log-container">
+          <div class="activity-log-title" onclick="toggleActivityLog()">Activity Log</div>
+          <div id="activity-log-content" style="display:none;">
+            <?php if (!empty($activity_log)): ?>
+              <ul class="activity-log-list">
+                <?php foreach (array_reverse($activity_log) as $entry): ?>
+                  <li><?= esc_html($entry) ?></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php else: ?>
+              <div class="no-activity">No activity yet.</div>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div style="flex:1; min-width:300px;">
+    <h3 style="margin-top:0px;">🖊 Editing Tools</h3>
+    <div class="tool-tile-grid">
+      <a href="https://pixlr.com/e/" target="_blank">Pixlr Editor</a>
+      <a href="https://www.canva.com/" target="_blank">Canva</a>
+      <a href="https://photopea.com/" target="_blank">Photopea</a>
+      <a href="https://express.adobe.com/tools/image-resize" target="_blank">Adobe Express</a>
+      <a href="https://www.photoshop.com/tools" target="_blank">Photoshop Web</a>
+    </div>
+    <p style="font-size:13px;color:#666;margin-top:5px;">Edit externally. Save and re-upload as new version.</p>
+
+    <h3 style="margin-top:20px;">📋 Asset Metadata <button id="edit-toggle-btn">✏️ Edit Metadata</button></h3>
+    <form method="post" id="acf-form" class="readonly">
+      <details>
+        <summary>📝 Content Metadata</summary>
+        <div class="acf-grid">
+          <?php
+          $acf_content = ['title'=>'Title','caption'=>'Caption','tags'=>'Tags','creator'=>'Creator','location'=>'Location','notes'=>'Notes','collection'=>'Collection'];
+          foreach ($acf_content as $field => $label):
+            $val = get_field($field, $attachment_id);
+            echo "<p><label>{$label}<input type='text' name='acf_edit[$field]' value='" . esc_attr($val) . "' title='Enter {$label}'></label></p>";
+          endforeach;
+          ?>
+        </div>
+      </details>
+
+      <details>
+        <summary>🔧 Technical Metadata</summary>
+        <div class="acf-grid">
+          <?php
+          $acf_tech = ['imagereference'=>'Image Ref','secondary_id'=>'Secondary ID','ref_code'=>'Ref Code','capture_date'=>'Capture Date','camera_make'=>'Camera Make','camera_model'=>'Camera Model','software'=>'Software','color_space'=>'Color Space','file_size'=>'File Size','image_dimensions'=>'Image Dimensions','license_type'=>'License Type','license_summary'=>'License Summary','copyright'=>'Copyright','filename'=>'Filename','file_type'=>'File Type','edit_history'=>'Edit History'];
+          foreach ($acf_tech as $field => $label):
+            $val = get_field($field, $attachment_id);
+            echo "<p><label>{$label}<input type='text' name='acf_edit[$field]' value='" . esc_attr($val) . "' title='Enter {$label}'></label></p>";
+          endforeach;
+          ?>
+        </div>
+      </details>
+
+      <button type="submit" name="save_acf_fields" id="save-acf-btn">💾 Save Changes</button>
+    </form>
+  </div>
+</div>
+
+<script>
+const ajaxurl = '<?= admin_url('admin-ajax.php') ?>';
+
+document.getElementById('edit-toggle-btn')?.addEventListener('click', function () {
+  const form = document.getElementById('acf-form');
+  const saveBtn = document.getElementById('save-acf-btn');
+  form.classList.toggle('readonly');
+  const editing = !form.classList.contains('readonly');
+  saveBtn.style.display = editing ? 'inline-block' : 'none';
+  this.textContent = editing ? '🔒 Cancel' : '✏️ Edit Metadata';
+});
+
+function toggleActivityLog() {
+  const log = document.getElementById('activity-log-content');
+  log.style.display = (log.style.display === 'none') ? 'block' : 'none';
 }
+
+function confirmDelete(attachmentId) {
+  if (confirm('Are you sure you want to delete this image? This action cannot be undone.')) {
+    // Create a form to submit the delete request
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.style.display = 'none';
+    
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'delete_asset';
+    input.value = attachmentId;
+    
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
+</script>
+<?php
+  if (isset($_POST['delete_asset'])) {
+    $delete_id = intval($_POST['delete_asset']);
+    if ($delete_id && get_post_field('post_author', $delete_id) == $user_id) {
+      if (wp_delete_attachment($delete_id, true)) {
+        echo '<script>alert("Image deleted successfully."); window.location.href = "/my-assets/";</script>';
+        return;
+      } else {
+        echo '<div style="margin-top:10px; color:red; font-weight:bold;">❌ Error deleting image.</div>';
+      }
+    }
+  }
+
+  if (isset($_POST['save_acf_fields'])) {
+    if (!empty($_POST['acf_edit'])) {
+      foreach ($_POST['acf_edit'] as $field => $val) {
+        update_field($field, sanitize_text_field($val), $attachment_id);
+      }
+    }
+    if (isset($_POST['acf_edit_labels'])) {
+      update_field('fastmedia_asset_labels', array_map('sanitize_text_field', $_POST['acf_edit_labels']), $attachment_id);
+    } else {
+      update_field('fastmedia_asset_labels', [], $attachment_id);
+    }
+    echo '<div style="margin-top:10px; color:green; font-weight:bold;">✅ Metadata saved successfully.</div>';
+  }
+
+  if (isset($_POST['suggest_brand'])) {
+    if (!in_array('BR', $selected_labels)) {
+      $selected_labels[] = 'BR';
+      update_field('fastmedia_asset_labels', $selected_labels, $attachment_id);
+      update_field('fastmedia_brand_approved', false, $attachment_id);
+      echo '<div style="margin-top:10px; color:orange; font-weight:bold;">✅ Marked for brand approval.</div>';
+    }
+  }
+  return ob_get_clean();
+});
