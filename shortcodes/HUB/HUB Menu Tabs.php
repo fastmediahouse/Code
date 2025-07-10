@@ -2,11 +2,6 @@ add_shortcode('fastmedia_hub_tabs', function () {
     ob_start();
     ?>
     <div class="fastmedia-topnav-layout">
-        <!-- TOP BAR WITH TOGGLE ONLY -->
-        <div class="fm-topbar">
-            <button id="fmToggleTabs" class="fm-toggle-tabs" title="Toggle Menu">☰</button>
-        </div>
-
         <!-- BOXED NAVIGATION WITH ICON + TEXT LINKS -->
         <div id="fmTabMenu" class="fm-boxed-tabs">
             <a href="/my-assets/" class="fm-tab-box"><i class="fas fa-image"></i> My Assets</a>
@@ -24,32 +19,13 @@ add_shortcode('fastmedia_hub_tabs', function () {
     <style>
     .fastmedia-topnav-layout { padding: 0; background: #f9f9f9; }
 
-    .fm-topbar { 
-        display: flex; 
-        justify-content: flex-end; 
-        align-items: center; 
-        padding: 10px 16px; 
-        background: #fff; 
-        border-bottom: 1px solid #ccc; 
-    }
-
-    .fm-toggle-tabs { 
-        background: #000; 
-        color: #fff; 
-        border: none; 
-        padding: 8px 12px; 
-        font-size: 18px; 
-        border-radius: 4px; 
-        cursor: pointer; 
-        display: none; 
-    }
-
     .fm-boxed-tabs { 
         display: flex; 
         justify-content: space-between; 
         gap: 16px; 
         padding: 16px; 
         background: #fff; 
+        border-radius: 8px; /* Rounded corners */
         overflow-x: auto; 
         -webkit-overflow-scrolling: touch; 
         scroll-snap-type: x mandatory;
@@ -59,7 +35,7 @@ add_shortcode('fastmedia_hub_tabs', function () {
         display: flex; 
         align-items: center; 
         gap: 8px; 
-        padding: 8px 14px; /* Reduced padding for better fit */
+        padding: 8px 14px; /* Adjusted padding */
         background: #fff; 
         border-radius: 8px; 
         border: 1px solid #ccc; 
@@ -72,7 +48,7 @@ add_shortcode('fastmedia_hub_tabs', function () {
     }
 
     .fm-tab-box i {
-        font-size: 16px; /* Slightly smaller icon size */
+        font-size: 16px; /* Icon size */
         color: #000; /* Black icons */
     }
 
@@ -81,9 +57,6 @@ add_shortcode('fastmedia_hub_tabs', function () {
     }
 
     @media (max-width: 768px) {
-        .fm-toggle-tabs { 
-            display: block; 
-        }
         .fm-boxed-tabs { 
             flex-wrap: nowrap; 
             display: none; 
