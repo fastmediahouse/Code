@@ -76,22 +76,25 @@ add_shortcode('fastmedia_asset_detail', function () {
     color: #fff; border: none; border-radius: 4px; display: none;
   }
 
-  /* Applied changes based on your requests */
+  /* Font size fix and icon cursor updates */
   .asset-detail-container .image-number {
     font-size: 16px !important;  /* Align the font size of image name with "Editing Tools" */
   }
 
-  .download-section h4 {
+  .activity-log-button {
+    cursor: pointer;
     font-size: 16px !important;
-    margin-bottom: 10px !important;
+    font-weight: bold !important;
+    color: #0073aa;
+    text-decoration: underline;
+    background: none;
+    border: none;
+    padding: 0;
   }
 
-  .download-buttons {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 10px !important;
-    margin-bottom: 15px !important;
-  }
+  .action-icon { cursor: pointer; font-size: 18px; margin-left: 10px; }
+
+  .activity-log-list { font-size: 13px !important; padding-left: 18px !important; color: #444 !important; }
 
   .download-button {
     background: #0073aa !important;
@@ -103,18 +106,8 @@ add_shortcode('fastmedia_asset_detail', function () {
     display: inline-block !important;
   }
 
-  /* Edit metadata button now more minimal and inline */
-  .asset-detail-container .acf-grid button {
-    font-size: 14px !important;
-    background: #f5f5f5 !important;
-    padding: 6px 12px !important;
-    border-radius: 4px !important;
-    border: 1px solid #ccc !important;
-    font-weight: normal !important;
-  }
-
   /* Activity Log button minimalized */
-  .asset-detail-container .activity-log-button {
+  .activity-log-container .activity-log-button {
     display: inline-block !important;
     background: #0073aa !important;
     color: white !important;
@@ -136,22 +129,6 @@ add_shortcode('fastmedia_asset_detail', function () {
     font-size: 13px !important;
     color: #888 !important;
     margin-top: 5px !important;
-  }
-
-  /* Activity Log collapsible changes */
-  .activity-log-button {
-    cursor: pointer;
-    font-size: 16px !important;
-    font-weight: bold !important;
-    color: #0073aa;
-    text-decoration: underline;
-    background: none;
-    border: none;
-    padding: 0;
-  }
-
-  #activity-log-content {
-    display: none;
   }
 </style>
 
@@ -218,7 +195,7 @@ add_shortcode('fastmedia_asset_detail', function () {
 
         <div class="activity-log-container">
           <div class="activity-log-button" onclick="toggleActivityLog()">Activity Log</div>
-          <div id="activity-log-content">
+          <div id="activity-log-content" style="display:none;">
             <?php if (!empty($activity_log)): ?>
               <ul class="activity-log-list">
                 <?php foreach (array_reverse($activity_log) as $entry): ?>
@@ -287,33 +264,21 @@ document.getElementById('edit-toggle-btn')?.addEventListener('click', function (
   saveBtn.style.display = editing ? 'inline-block' : 'none';
   this.textContent = editing ? '🔒 Cancel' : '✏️ Edit Metadata';
 });
+
 function toggleActivityLog() {
   const log = document.getElementById('activity-log-content');
   log.style.display = (log.style.display === 'none') ? 'block' : 'none';
 }
 </script>
 <?php
+  // Handle form submissions
   if (isset($_POST['save_acf_fields'])) {
     if (!empty($_POST['acf_edit'])) {
       foreach ($_POST['acf_edit'] as $field => $val) {
         update_field($field, sanitize_text_field($val), $attachment_id);
       }
     }
-    if (isset($_POST['acf_edit_labels'])) {
-      update_field('fastmedia_asset_labels', array_map('sanitize_text_field', $_POST['acf_edit_labels']), $attachment_id);
-    } else {
-      update_field('fastmedia_asset_labels', [], $attachment_id);
-    }
     echo '<div style="margin-top:10px; color:green; font-weight:bold;">✅ Metadata saved successfully.</div>';
-  }
-
-  if (isset($_POST['suggest_brand'])) {
-    if (!in_array('BR', $selected_labels)) {
-      $selected_labels[] = 'BR';
-      update_field('fastmedia_asset_labels', $selected_labels, $attachment_id);
-      update_field('fastmedia_brand_approved', false, $attachment_id);
-      echo '<div style="margin-top:10px; color:orange; font-weight:bold;">✅ Marked for brand approval.</div>';
-    }
   }
   return ob_get_clean();
 });
