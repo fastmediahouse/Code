@@ -31,10 +31,11 @@ add_shortcode('fastmedia_asset_detail', function () {
 ?>
 <style>
   .label-icon-grid { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
-  .label-icon { font-size: 12px; font-weight: bold; padding: 4px 8px; border-radius: 4px; color: white; cursor: default; }
+  .label-icon { font-size: 12px; font-weight: bold; padding: 4px 8px; border-radius: 4px; color: white; cursor: pointer; }
   .label-ST { background: #0073aa; } .label-UP { background: #00a65a; } .label-BR { background: #000; }
   .label-LO { background: #ff7700; } .label-FI { background: #e6b800; } .label-PH { background: #008080; }
   .label-VI { background: #7a4dc9; } .label-VC { background: #c62828; } .label-AI { background: #444; }
+
   .dropdown-labels { position: relative; }
   .dropdown-labels button {
     padding: 6px 12px; border: 1px solid #ccc; background: #fff; border-radius: 4px;
@@ -50,85 +51,62 @@ add_shortcode('fastmedia_asset_detail', function () {
     display: flex; align-items: center; font-size: 14px; gap: 6px;
     margin-bottom: 6px; color: black;
   }
-  .tool-tile-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(100px, 1fr));
-    gap: 10px; margin-top: 10px; margin-bottom: 5px;
-  }
+
+  .tool-tile-grid { display: grid; grid-template-columns: repeat(2, minmax(100px, 1fr)); gap: 10px; margin-top: 10px; margin-bottom: 5px; }
   .tool-tile-grid a {
     color: green; font-weight: bold; text-decoration: none;
     background: #f5f5f5; padding: 8px 10px; border-radius: 6px; text-align: center;
   }
+
   .readonly input, .readonly textarea, .readonly select { background: #f5f5f5; pointer-events: none; }
+
   .acf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
   .acf-grid label { font-weight: 600; font-size: 13px; margin-bottom: 4px; display: block; }
   .acf-grid input, .acf-grid textarea, .acf-grid select {
     width: 100%; padding: 6px 8px; border: 1px solid #ccc;
     border-radius: 4px; font-size: 14px; background: #f9f9f9;
   }
-  #edit-toggle-btn {
-    margin-top: 10px; padding: 6px 14px; background: #f0f0f0;
-    border: 1px solid #ccc; border-radius: 6px; cursor: pointer;
-    color: #000; font-weight: 600;
-  }
-  #save-acf-btn {
-    margin-top: 15px; padding: 8px 20px; background: #0073aa;
-    color: #fff; border: none; border-radius: 4px; display: none;
+
+  #edit-toggle-btn { margin-top: 10px; padding: 6px 14px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; color: #000; font-weight: 600; }
+  #save-acf-btn { margin-top: 15px; padding: 8px 20px; background: #0073aa; color: #fff; border: none; border-radius: 4px; display: none; }
+
+  /* Fixed: Image number font size to match "Editing Tools" */
+  .asset-detail-container .image-number { font-size: 24px !important; font-weight: bold !important; }
+  .download-section h4 { font-size: 16px !important; margin-bottom: 10px !important; }
+
+  .download-buttons { display: flex !important; flex-wrap: wrap !important; gap: 10px !important; margin-bottom: 15px !important; }
+  .download-button {
+    background: #0073aa !important; color: white !important; padding: 8px 12px !important; text-decoration: none !important;
+    border-radius: 5px !important; font-weight: bold !important; display: inline-block !important;
   }
 
-  /* Font size fix and icon cursor updates */
-  .asset-detail-container .image-number {
-    font-size: 16px !important;  /* Align the font size of image name with "Editing Tools" */
+  .asset-detail-container .acf-grid button {
+    font-size: 14px !important; background: #f5f5f5 !important; padding: 6px 12px !important; border-radius: 4px !important;
+    border: 1px solid #ccc !important; font-weight: normal !important;
   }
 
-  .activity-log-button {
-    cursor: pointer;
-    font-size: 16px !important;
-    font-weight: bold !important;
-    color: #0073aa;
-    text-decoration: underline;
-    background: none;
-    border: none;
-    padding: 0;
+  /* Fixed: Activity Log button minimized to simple title */
+  .asset-detail-container .activity-log-title {
+    font-size: 14px !important; font-weight: bold !important; margin-bottom: 8px !important; 
+    color: #333 !important; cursor: pointer !important; text-decoration: underline !important;
   }
-
-  .action-icon { cursor: pointer; font-size: 18px; margin-left: 10px; }
+  .asset-detail-container .activity-log-title:hover {
+    color: #0073aa !important;
+  }
 
   .activity-log-list { font-size: 13px !important; padding-left: 18px !important; color: #444 !important; }
+  .no-activity { font-size: 13px !important; color: #888 !important; margin-top: 5px !important; }
 
-  .download-button {
-    background: #0073aa !important;
-    color: white !important;
-    padding: 8px 12px !important;
-    text-decoration: none !important;
-    border-radius: 5px !important;
-    font-weight: bold !important;
-    display: inline-block !important;
+  /* Fixed: Added cursor pointer for action icons */
+  .action-icon { 
+    cursor: pointer !important; 
+    padding: 4px 8px !important; 
+    border-radius: 4px !important; 
+    background: #f5f5f5 !important; 
+    border: 1px solid #ddd !important;
   }
-
-  /* Activity Log button minimalized */
-  .activity-log-container .activity-log-button {
-    display: inline-block !important;
-    background: #0073aa !important;
-    color: white !important;
-    padding: 6px 12px !important;
-    border-radius: 5px !important;
-    font-weight: bold !important;
-    margin-bottom: 10px !important;
-    text-align: center !important;
-    border: none !important;
-  }
-
-  .activity-log-list {
-    font-size: 13px !important;
-    padding-left: 18px !important;
-    color: #444 !important;
-  }
-
-  .no-activity {
-    font-size: 13px !important;
-    color: #888 !important;
-    margin-top: 5px !important;
+  .action-icon:hover { 
+    background: #e0e0e0 !important; 
   }
 </style>
 
@@ -194,7 +172,7 @@ add_shortcode('fastmedia_asset_detail', function () {
         </div>
 
         <div class="activity-log-container">
-          <div class="activity-log-button" onclick="toggleActivityLog()">Activity Log</div>
+          <div class="activity-log-title" onclick="toggleActivityLog()">Activity Log</div>
           <div id="activity-log-content" style="display:none;">
             <?php if (!empty($activity_log)): ?>
               <ul class="activity-log-list">
@@ -271,14 +249,27 @@ function toggleActivityLog() {
 }
 </script>
 <?php
-  // Handle form submissions
   if (isset($_POST['save_acf_fields'])) {
     if (!empty($_POST['acf_edit'])) {
       foreach ($_POST['acf_edit'] as $field => $val) {
         update_field($field, sanitize_text_field($val), $attachment_id);
       }
     }
+    if (isset($_POST['acf_edit_labels'])) {
+      update_field('fastmedia_asset_labels', array_map('sanitize_text_field', $_POST['acf_edit_labels']), $attachment_id);
+    } else {
+      update_field('fastmedia_asset_labels', [], $attachment_id);
+    }
     echo '<div style="margin-top:10px; color:green; font-weight:bold;">✅ Metadata saved successfully.</div>';
+  }
+
+  if (isset($_POST['suggest_brand'])) {
+    if (!in_array('BR', $selected_labels)) {
+      $selected_labels[] = 'BR';
+      update_field('fastmedia_asset_labels', $selected_labels, $attachment_id);
+      update_field('fastmedia_brand_approved', false, $attachment_id);
+      echo '<div style="margin-top:10px; color:orange; font-weight:bold;">✅ Marked for brand approval.</div>';
+    }
   }
   return ob_get_clean();
 });
