@@ -9,20 +9,23 @@ add_shortcode('fastmedia_hub_tabs', function () {
 
         <!-- BOXED NAVIGATION WITH ICON + TEXT LINKS -->
         <div id="fmTabMenu" class="fm-boxed-tabs">
-            <a href="/my-assets/" class="fm-tab-box">🧭 My Assets</a>
-            <a href="/brand/" class="fm-tab-box">🎨 Brand</a>
-            <a href="/uploaded/" class="fm-tab-box">⬆️ Uploaded</a>
-            <a href="/licensed/" class="fm-tab-box">📄 Purchased</a>
-            <a href="/upload/" class="fm-tab-box">📤 Upload</a>
-            <a href="/projects/" class="fm-tab-box">📁 Projects</a>
-            <a href="/groups/" class="fm-tab-box">👥 Teams</a>
-            <a href="/messages/" class="fm-tab-box">💬 Messages</a>
-            <a href="/admin/" class="fm-tab-box">🔧 Admin</a>
+            <a href="/my-assets/" class="fm-tab-box"><i class="fas fa-image"></i> My Assets</a>
+            <a href="/brand/" class="fm-tab-box"><i class="fas fa-palette"></i> Brand</a>
+            <a href="/uploaded/" class="fm-tab-box"><i class="fas fa-cloud-upload-alt"></i> Uploaded</a>
+            <a href="/licensed/" class="fm-tab-box"><i class="fas fa-file-alt"></i> Purchased</a>
+            <a href="/upload/" class="fm-tab-box"><i class="fas fa-cloud-upload"></i> Upload</a>
+            <a href="/projects/" class="fm-tab-box"><i class="fas fa-folder"></i> Projects</a>
+            <a href="/groups/" class="fm-tab-box"><i class="fas fa-users"></i> Teams</a>
+            <a href="/messages/" class="fm-tab-box"><i class="fas fa-comments"></i> Messages</a>
+            <a href="/admin/" class="fm-tab-box"><i class="fas fa-cogs"></i> Admin</a>
         </div>
     </div>
 
     <style>
-    .fastmedia-topnav-layout { padding: 0; background: #f9f9f9; }
+    .fastmedia-topnav-layout { 
+        padding: 0; 
+        background: #fff; /* No background */
+    }
 
     .fm-topbar { 
         display: flex; 
@@ -49,7 +52,7 @@ add_shortcode('fastmedia_hub_tabs', function () {
         justify-content: space-between; 
         gap: 16px; 
         padding: 16px; 
-        background: #f0f0f0; 
+        background: #f8f8f8; 
         overflow-x: auto; 
         -webkit-overflow-scrolling: touch; 
         scroll-snap-type: x mandatory;
@@ -71,8 +74,13 @@ add_shortcode('fastmedia_hub_tabs', function () {
         color: inherit;
     }
 
+    .fm-tab-box i {
+        font-size: 18px; /* Larger icons for better visibility */
+        color: #000; /* Black icons */
+    }
+
     .fm-tab-box:hover { 
-        background: #eee; 
+        background: #e0e0e0; /* Light grey hover effect */
     }
 
     @media (max-width: 768px) {
