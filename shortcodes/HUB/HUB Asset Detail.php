@@ -67,11 +67,16 @@ add_shortcode('fastmedia_asset_detail', function () {
     border-radius: 4px; font-size: 14px; background: #f9f9f9;
   }
 
-  #edit-toggle-btn { margin-top: 10px; padding: 6px 14px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; color: #000; font-weight: 600; }
+  #edit-toggle-btn { 
+    margin-left: 10px !important; padding: 6px 12px !important; background: #fff !important; 
+    border: 1px solid #ccc !important; border-radius: 4px !important; cursor: pointer !important; 
+    color: #333 !important; font-weight: normal !important; font-size: 14px !important;
+    display: inline-block !important; vertical-align: middle !important;
+  }
   #save-acf-btn { margin-top: 15px; padding: 8px 20px; background: #0073aa; color: #fff; border: none; border-radius: 4px; display: none; }
 
-  /* Fixed: Image number font size to match "Editing Tools" */
-  .asset-detail-container .image-number { font-size: 24px !important; font-weight: bold !important; }
+  /* Fixed: Image number font size and styling to match "Editing Tools" */
+  .asset-detail-container .image-number { font-size: 24px !important; font-weight: bold !important; color: #333 !important; }
   .download-section h4 { font-size: 16px !important; margin-bottom: 10px !important; }
 
   .download-buttons { display: flex !important; flex-wrap: wrap !important; gap: 10px !important; margin-bottom: 15px !important; }
@@ -113,7 +118,7 @@ add_shortcode('fastmedia_asset_detail', function () {
 <div class="asset-detail-container" style="display:flex; gap:40px; flex-wrap:wrap;">
   <div style="flex:1; min-width:300px;">
     <form method="post">
-      <p><strong>Image Number:</strong> <span class="image-number"><?= esc_html(get_the_title($attachment_id)) ?></span></p>
+      <p><strong>Asset ID:</strong> <span class="image-number"><?= esc_html(get_the_title($attachment_id)) ?></span></p>
       <img id="asset-img" src="<?= esc_url($image_url) ?>" style="width:100%; border-radius:10px;" alt="Preview" crossorigin="anonymous">
 
       <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -148,7 +153,7 @@ add_shortcode('fastmedia_asset_detail', function () {
 
         <div class="action-icon" onclick="prompt('Share this link:', window.location.href)" title="Share this image">🔗</div>
         <div class="action-icon" onclick="launchAnnotation()" title="Annotate image">🖍️</div>
-        <div class="action-icon" onclick="trashAsset(<?= $attachment_id ?>)" title="Delete this image">🗑️</div>
+        <div class="action-icon" onclick="confirmDelete(<?= $attachment_id ?>)" title="Delete this image">🗑️</div>
       </div>
 
       <?= fastmedia_project_toggle_ui($attachment_id) ?>
@@ -247,8 +252,38 @@ function toggleActivityLog() {
   const log = document.getElementById('activity-log-content');
   log.style.display = (log.style.display === 'none') ? 'block' : 'none';
 }
+
+function confirmDelete(attachmentId) {
+  if (confirm('Are you sure you want to delete this image? This action cannot be undone.')) {
+    // Create a form to submit the delete request
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.style.display = 'none';
+    
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'delete_asset';
+    input.value = attachmentId;
+    
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
 </script>
 <?php
+  if (isset($_POST['delete_asset'])) {
+    $delete_id = intval($_POST['delete_asset']);
+    if ($delete_id && get_post_field('post_author', $delete_id) == $user_id) {
+      if (wp_delete_attachment($delete_id, true)) {
+        echo '<script>alert("Image deleted successfully."); window.location.href = "/media-library/";</script>';
+        return;
+      } else {
+        echo '<div style="margin-top:10px; color:red; font-weight:bold;">❌ Error deleting image.</div>';
+      }
+    }
+  }
+
   if (isset($_POST['save_acf_fields'])) {
     if (!empty($_POST['acf_edit'])) {
       foreach ($_POST['acf_edit'] as $field => $val) {
