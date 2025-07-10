@@ -75,8 +75,19 @@ add_shortcode('fastmedia_asset_detail', function () {
   }
   #save-acf-btn { margin-top: 15px; padding: 8px 20px; background: #0073aa; color: #fff; border: none; border-radius: 4px; display: none; }
 
-  /* Fixed: Image number font size and styling to match "Editing Tools" */
-  .asset-detail-container .image-number { font-size: 24px !important; font-weight: bold !important; color: #333 !important; }
+  /* Fixed: Asset ID title to match Editing Tools styling */
+  .asset-detail-container .asset-id-title { 
+    font-size: 18px !important; 
+    font-weight: bold !important; 
+    color: #333 !important; 
+    margin: 0 0 10px 0 !important; 
+  }
+  .asset-detail-container .image-number { 
+    font-size: 18px !important; 
+    font-weight: normal !important; 
+    color: #333 !important; 
+  }
+
   .download-section h4 { font-size: 16px !important; margin-bottom: 10px !important; }
 
   .download-buttons { display: flex !important; flex-wrap: wrap !important; gap: 10px !important; margin-bottom: 15px !important; }
@@ -118,7 +129,7 @@ add_shortcode('fastmedia_asset_detail', function () {
 <div class="asset-detail-container" style="display:flex; gap:40px; flex-wrap:wrap;">
   <div style="flex:1; min-width:300px;">
     <form method="post">
-      <p><strong>Asset ID:</strong> <span class="image-number"><?= esc_html(get_the_title($attachment_id)) ?></span></p>
+      <h3 class="asset-id-title">Asset ID: <span class="image-number"><?= esc_html(get_the_title($attachment_id)) ?></span></h3>
       <img id="asset-img" src="<?= esc_url($image_url) ?>" style="width:100%; border-radius:10px;" alt="Preview" crossorigin="anonymous">
 
       <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -276,7 +287,7 @@ function confirmDelete(attachmentId) {
     $delete_id = intval($_POST['delete_asset']);
     if ($delete_id && get_post_field('post_author', $delete_id) == $user_id) {
       if (wp_delete_attachment($delete_id, true)) {
-        echo '<script>alert("Image deleted successfully."); window.location.href = "/media-library/";</script>';
+        echo '<script>alert("Image deleted successfully."); window.location.href = "/my-assets/";</script>';
         return;
       } else {
         echo '<div style="margin-top:10px; color:red; font-weight:bold;">❌ Error deleting image.</div>';
