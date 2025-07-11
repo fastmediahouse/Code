@@ -1,4 +1,3 @@
-<?php
 class FastMedia_Annotation_System {
     
     public function __construct() {
@@ -228,17 +227,19 @@ class FastMedia_Annotation_System {
                     
                     const modal = document.createElement("div");
                     modal.id = "fastmedia-annotation-modal";
+                    modal.style.cssText = "position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; background: rgba(0,0,0,0.95) !important; z-index: 999999 !important; display: flex !important; align-items: center !important; justify-content: center !important;";
+                    
                     modal.innerHTML = `
-                        <div class="annotation-container">
-                            <div class="annotation-header">
-                                <h3>🎨 Annotate Image #${this.currentAttachmentId}</h3>
-                                <button class="close-btn" onclick="FastMediaAnnotation.closeModal()">✕ Close</button>
+                        <div class="annotation-container" style="width: 90%; max-width: 1200px; height: 85vh; background: white; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                            <div class="annotation-header" style="display: flex; justify-content: space-between; align-items: center; padding: 15px 25px; background: #f8f9fa; border-bottom: 2px solid #ddd; border-radius: 8px 8px 0 0;">
+                                <h3 style="margin: 0; font-size: 20px; color: #333;">🎨 Annotate Image #${this.currentAttachmentId}</h3>
+                                <button class="close-btn" onclick="FastMediaAnnotation.closeModal()" style="background: #dc3545; color: white; border: none; font-size: 16px; cursor: pointer; padding: 8px 15px; border-radius: 4px; font-weight: bold;">✕ Close</button>
                             </div>
                             
-                            <div class="annotation-toolbar">
-                                <button class="tool-btn active" onclick="FastMediaAnnotation.setTool(this, \'draw\')">✏️ Draw</button>
-                                <button class="tool-btn" onclick="FastMediaAnnotation.setTool(this, \'text\')">💬 Text</button>
-                                <button class="tool-btn" onclick="FastMediaAnnotation.setTool(this, \'arrow\')">➡️ Arrow</button>
+                            <div class="annotation-toolbar" style="padding: 15px 25px; border-bottom: 1px solid #ddd; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; background: #fff;">
+                                <button class="tool-btn active" onclick="FastMediaAnnotation.setTool(this, \'draw\')" style="padding: 8px 15px; border: 1px solid #ddd; background: #0073aa; color: white; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">✏️ Draw</button>
+                                <button class="tool-btn" onclick="FastMediaAnnotation.setTool(this, \'text\')" style="padding: 8px 15px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">💬 Text</button>
+                                <button class="tool-btn" onclick="FastMediaAnnotation.setTool(this, \'arrow\')" style="padding: 8px 15px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">➡️ Arrow</button>
                                 
                                 <span style="margin-left: 20px; font-weight: bold;">Color:</span>
                                 <input type="color" id="annotation-color" value="#ff0000" onchange="FastMediaAnnotation.setColor(this.value)" style="width: 40px; height: 35px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
@@ -247,26 +248,27 @@ class FastMedia_Annotation_System {
                                 <input type="range" id="brush-size" min="1" max="20" value="3" onchange="FastMediaAnnotation.setBrushSize(this.value)" style="width: 100px;">
                                 <span id="brush-size-display" style="font-weight: bold; margin-left: 5px;">3px</span>
                                 
-                                <button class="tool-btn" onclick="FastMediaAnnotation.clear()" style="margin-left: 20px; background: #dc3545; color: white;">🗑️ Clear</button>
+                                <button class="tool-btn" onclick="FastMediaAnnotation.clear()" style="margin-left: 20px; padding: 8px 15px; border: none; background: #dc3545; color: white; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">🗑️ Clear</button>
                             </div>
                             
-                            <div class="annotation-workspace">
-                                <canvas id="annotation-canvas"></canvas>
+                            <div class="annotation-workspace" style="flex: 1; padding: 20px; display: flex; justify-content: center; align-items: center; background: #f9f9f9; overflow: hidden;">
+                                <canvas id="annotation-canvas" style="border: 2px solid #ddd; background: white; border-radius: 4px;"></canvas>
                             </div>
                             
-                            <div class="annotation-footer">
-                                <button class="btn btn-secondary" onclick="FastMediaAnnotation.closeModal()">Cancel</button>
-                                <button class="btn btn-success" onclick="FastMediaAnnotation.saveAnnotation()">💾 Save as New Version</button>
+                            <div class="annotation-footer" style="padding: 15px 25px; border-top: 2px solid #ddd; display: flex; justify-content: space-between; background: #f8f9fa; border-radius: 0 0 8px 8px; align-items: center;">
+                                <button class="btn btn-secondary" onclick="FastMediaAnnotation.closeModal()" style="padding: 12px 25px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; background: #6c757d; color: white;">Cancel</button>
+                                <button class="btn btn-success" onclick="FastMediaAnnotation.saveAnnotation()" style="padding: 12px 25px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; background: #28a745; color: white;">💾 Save as New Version</button>
                             </div>
                         </div>
                     `;
                     
                     document.body.appendChild(modal);
-                    modal.style.display = "block";
                     
-                    // Ensure modal shows on top
+                    // Prevent body scroll
+                    document.body.style.overflow = "hidden";
+                    
+                    // Initialize canvas after a short delay
                     setTimeout(() => {
-                        modal.style.display = "block";
                         this.initializeCanvas();
                     }, 50);
                 },
@@ -400,6 +402,7 @@ class FastMedia_Annotation_System {
                     const modal = document.getElementById("fastmedia-annotation-modal");
                     if (modal) {
                         modal.remove();
+                        document.body.style.overflow = ""; // Restore body scroll
                     }
                 }
             };
@@ -410,4 +413,3 @@ class FastMedia_Annotation_System {
 }
 
 new FastMedia_Annotation_System();
-?>
