@@ -1,39 +1,13 @@
-// FastMedia Annotation System - Add this to WPCode as a separate snippet
-
+<?php
 class FastMedia_Annotation_System {
     
     public function __construct() {
-        // Register AJAX handlers
         add_action('wp_ajax_fastmedia_checkout_image', array($this, 'checkout_image_handler'));
-        add_action('wp_ajax_fastmedia_checkin_image', array($this, 'checkin_image_handler'));
         add_action('wp_ajax_fastmedia_save_annotation', array($this, 'save_annotation_handler'));
-        add_action('wp_ajax_fastmedia_get_checkout_status', array($this, 'get_checkout_status_handler'));
-        
-        // Enqueue scripts and styles on pages that need annotation
         add_action('wp_enqueue_scripts', array($this, 'enqueue_annotation_assets'));
     }
     
-    public function enqueue_annotation_assets() {
-        // Only load on pages that need annotation (you can customize this condition)
-        if (is_page() || is_single()) {
-            // Fabric.js CDN
-            wp_enqueue_script('fabric-js', 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js', array(), '5.3.0', true);
-            
-            // Our annotation system
-            wp_add_inline_script('fabric-js', $this->get_annotation_javascript());
-            wp_add_inline_style('wp-admin', $this->get_annotation_css());
-            
-            // Localize for AJAX
-            wp_localize_script('fabric-js', 'fastmedia_annotation', array(
-                'ajax_url' => admin_url('admin-ajax.php'),
-                'nonce' => wp_create_nonce('fastmedia_annotation_nonce')
-            ));
-        }
-    }
-    
     public function checkout_image_handler() {
-        check_ajax_referer('fastmedia_annotation_nonce', 'nonce');
-        
         if (!is_user_logged_in()) {
             wp_send_json_error('User not logged in');
         }
@@ -41,77 +15,29 @@ class FastMedia_Annotation_System {
         $attachment_id = intval($_POST['attachment_id']);
         $user_id = get_current_user_id();
         
-        // Check if user owns the image
         if (get_post_field('post_author', $attachment_id) != $user_id) {
             wp_send_json_error('Access denied');
         }
         
-        // Check if already checked out
-        $checkout_info = get_post_meta($attachment_id, '_fastmedia_checkout', true);
-        if ($checkout_info && $checkout_info['user_id'] != $user_id) {
-            $checkout_user = get_userdata($checkout_info['user_id']);
-            wp_send_json_error('Image is currently being edited by ' . $checkout_user->display_name);
-        }
-        
-        // Check out the image
-        $checkout_data = array(
-            'user_id' => $user_id,
-            'checkout_time' => current_time('mysql'),
-            'user_name' => wp_get_current_user()->display_name
-        );
-        
-        update_post_meta($attachment_id, '_fastmedia_checkout', $checkout_data);
-        
-        // Log activity
-        $this->log_activity($attachment_id, 'Checked out for annotation');
-        
         wp_send_json_success(array(
-            'message' => 'Image checked out successfully',
-            'checkout_info' => $checkout_data
+            'message' => 'Ready to annotate!',
+            'attachment_id' => $attachment_id
         ));
     }
     
-    public function checkin_image_handler() {
-        check_ajax_referer('fastmedia_annotation_nonce', 'nonce');
-        
-        if (!is_user_logged_in()) {
-            wp_send_json_error('User not logged in');
-        }
-        
-        $attachment_id = intval($_POST['attachment_id']);
-        $user_id = get_current_user_id();
-        
-        // Check if user owns the image
-        if (get_post_field('post_author', $attachment_id) != $user_id) {
-            wp_send_json_error('Access denied');
-        }
-        
-        // Check in the image
-        delete_post_meta($attachment_id, '_fastmedia_checkout');
-        
-        // Log activity
-        $this->log_activity($attachment_id, 'Checked in after annotation');
-        
-        wp_send_json_success('Image checked in successfully');
-    }
-    
     public function save_annotation_handler() {
-        check_ajax_referer('fastmedia_annotation_nonce', 'nonce');
-        
         if (!is_user_logged_in()) {
             wp_send_json_error('User not logged in');
         }
         
         $attachment_id = intval($_POST['attachment_id']);
-        $image_data = $_POST['image_data']; // Base64 image data
+        $image_data = $_POST['image_data'];
         $user_id = get_current_user_id();
         
-        // Check if user owns the image
         if (get_post_field('post_author', $attachment_id) != $user_id) {
             wp_send_json_error('Access denied');
         }
         
-        // Decode base64 image
         $image_data = str_replace('data:image/png;base64,', '', $image_data);
         $image_data = str_replace(' ', '+', $image_data);
         $decoded_image = base64_decode($image_data);
@@ -120,24 +46,18 @@ class FastMedia_Annotation_System {
             wp_send_json_error('Invalid image data');
         }
         
-        // Get original attachment info
         $original_post = get_post($attachment_id);
-        $original_title = $original_post->post_title;
-        
-        // Create new filename
         $upload_dir = wp_upload_dir();
-        $filename = 'ANNOTATED_' . sanitize_file_name($original_title) . '_' . date('Y-m-d_H-i-s') . '.png';
+        $filename = 'ANNOTATED_' . sanitize_file_name($original_post->post_title) . '_' . date('Y-m-d_H-i-s') . '.png';
         $file_path = $upload_dir['path'] . '/' . $filename;
         
-        // Save the annotated image
         if (file_put_contents($file_path, $decoded_image) === false) {
             wp_send_json_error('Failed to save annotated image');
         }
         
-        // Create new attachment
         $attachment_data = array(
-            'post_title' => 'Annotated: ' . $original_title,
-            'post_content' => 'Annotated version of: ' . $original_title,
+            'post_title' => 'Annotated: ' . $original_post->post_title,
+            'post_content' => 'Annotated version of: ' . $original_post->post_title,
             'post_status' => 'inherit',
             'post_author' => $user_id,
             'post_mime_type' => 'image/png'
@@ -146,569 +66,339 @@ class FastMedia_Annotation_System {
         $new_attachment_id = wp_insert_attachment($attachment_data, $file_path);
         
         if ($new_attachment_id) {
-            // Generate attachment metadata
             require_once(ABSPATH . 'wp-admin/includes/image.php');
             $attachment_metadata = wp_generate_attachment_metadata($new_attachment_id, $file_path);
             wp_update_attachment_metadata($new_attachment_id, $attachment_metadata);
             
-            // Copy labels from original
             $original_labels = get_field('fastmedia_asset_labels', $attachment_id);
             if ($original_labels) {
                 update_field('fastmedia_asset_labels', $original_labels, $new_attachment_id);
             }
             
-            // Link to original
-            update_post_meta($new_attachment_id, '_fastmedia_original_id', $attachment_id);
-            update_post_meta($new_attachment_id, '_fastmedia_annotation_date', current_time('mysql'));
-            
-            // Log activity on both images
-            $this->log_activity($attachment_id, 'New annotated version created: #' . $new_attachment_id);
-            $this->log_activity($new_attachment_id, 'Annotated version of: #' . $attachment_id);
-            
-            // Check in original image
-            delete_post_meta($attachment_id, '_fastmedia_checkout');
-            
             wp_send_json_success(array(
                 'message' => 'Annotated version saved successfully',
-                'new_attachment_id' => $new_attachment_id,
-                'new_attachment_url' => wp_get_attachment_url($new_attachment_id)
+                'new_attachment_id' => $new_attachment_id
             ));
         } else {
             wp_send_json_error('Failed to create new attachment');
         }
     }
     
-    public function get_checkout_status_handler() {
-        check_ajax_referer('fastmedia_annotation_nonce', 'nonce');
-        
-        $attachment_id = intval($_POST['attachment_id']);
-        $checkout_info = get_post_meta($attachment_id, '_fastmedia_checkout', true);
-        
-        if ($checkout_info) {
-            wp_send_json_success(array(
-                'checked_out' => true,
-                'checkout_info' => $checkout_info
-            ));
-        } else {
-            wp_send_json_success(array('checked_out' => false));
-        }
-    }
-    
-    private function log_activity($attachment_id, $message) {
-        $current_log = get_post_meta($attachment_id, 'fastmedia_activity_log', true) ?: array();
-        $current_log[] = date('Y-m-d H:i:s') . ' - ' . wp_get_current_user()->display_name . ': ' . $message;
-        update_post_meta($attachment_id, 'fastmedia_activity_log', $current_log);
-    }
-    
-    private function get_annotation_css() {
-        return "
-        /* FastMedia Annotation Modal */
-        #fastmedia-annotation-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 10000;
-        }
-        
-        .annotation-container {
-            position: relative;
-            width: 90%;
-            height: 90%;
-            margin: 2.5% auto;
-            background: white;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .annotation-header {
-            padding: 15px 20px;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f8f9fa;
-            border-radius: 8px 8px 0 0;
-        }
-        
-        .annotation-header h3 {
-            margin: 0;
-            font-size: 18px;
-            color: #333;
-        }
-        
-        .checkout-status {
-            font-size: 12px;
-            color: #666;
-            background: #e8f5e8;
-            padding: 4px 8px;
-            border-radius: 4px;
-        }
-        
-        .annotation-toolbar {
-            padding: 10px 20px;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-            background: #fff;
-        }
-        
-        .tool-group {
-            display: flex;
-            gap: 5px;
-            align-items: center;
-            padding: 0 10px;
-            border-right: 1px solid #ddd;
-        }
-        
-        .tool-group:last-child {
-            border-right: none;
-        }
-        
-        .tool-btn {
-            padding: 8px 12px;
-            border: 1px solid #ccc;
-            background: #fff;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-        
-        .tool-btn:hover {
-            background: #f0f0f0;
-        }
-        
-        .tool-btn.active {
-            background: #0073aa;
-            color: white;
-            border-color: #0073aa;
-        }
-        
-        .color-picker {
-            width: 30px;
-            height: 30px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        .annotation-workspace {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #f9f9f9;
-        }
-        
-        .annotation-footer {
-            padding: 15px 20px;
-            border-top: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            background: #f8f9fa;
-            border-radius: 0 0 8px 8px;
-        }
-        
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-        
-        .btn-primary {
-            background: #0073aa;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #005a87;
-        }
-        
-        .btn-secondary {
-            background: #666;
-            color: white;
-        }
-        
-        .btn-secondary:hover {
-            background: #555;
-        }
-        
-        .btn-success {
-            background: #00a65a;
-            color: white;
-        }
-        
-        .btn-success:hover {
-            background: #008d4c;
-        }
-        
-        #annotation-canvas {
-            border: 1px solid #ddd;
-            max-width: 100%;
-            max-height: 100%;
-        }
-        ";
-    }
-    
-    private function get_annotation_javascript() {
-        return "
-        // FastMedia Annotation System JavaScript
-        window.FastMediaAnnotation = {
-            canvas: null,
-            currentTool: 'select',
-            isDrawing: false,
-            currentAttachmentId: null,
-            originalImageUrl: null,
+    public function enqueue_annotation_assets() {
+        if (is_page() || is_single()) {
+            wp_enqueue_script('fabric-js', 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js', array(), '5.3.0', true);
             
-            openEditor: function(attachmentId, imageUrl) {
-                this.currentAttachmentId = attachmentId;
-                this.originalImageUrl = imageUrl || document.getElementById('asset-img').src;
-                
-                // Check if image is already checked out
-                this.checkCheckoutStatus(attachmentId);
-            },
-            
-            checkCheckoutStatus: function(attachmentId) {
-                fetch(fastmedia_annotation.ajax_url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        action: 'fastmedia_get_checkout_status',
-                        attachment_id: attachmentId,
-                        nonce: fastmedia_annotation.nonce
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        if (data.data.checked_out) {
-                            alert('Image is currently being edited by ' + data.data.checkout_info.user_name);
-                            return;
-                        }
-                        this.checkoutAndOpen(attachmentId);
-                    }
-                });
-            },
-            
-            checkoutAndOpen: function(attachmentId) {
-                fetch(fastmedia_annotation.ajax_url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        action: 'fastmedia_checkout_image',
-                        attachment_id: attachmentId,
-                        nonce: fastmedia_annotation.nonce
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        this.createModal();
-                        this.initializeCanvas();
-                    } else {
-                        alert('Error: ' + data.data);
-                    }
-                });
-            },
-            
-            createModal: function() {
-                if (document.getElementById('fastmedia-annotation-modal')) {
-                    document.getElementById('fastmedia-annotation-modal').style.display = 'block';
-                    return;
+            wp_add_inline_style('wp-admin', '
+                #fastmedia-annotation-modal {
+                    display: none !important;
+                    position: fixed !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    width: 100vw !important;
+                    height: 100vh !important;
+                    background: rgba(0,0,0,0.95) !important;
+                    z-index: 999999 !important;
+                    overflow: hidden !important;
                 }
-                
-                const modal = document.createElement('div');
-                modal.id = 'fastmedia-annotation-modal';
-                modal.innerHTML = `
-                    <div class=\"annotation-container\">
-                        <div class=\"annotation-header\">
-                            <h3>🎨 Annotate Image</h3>
-                            <div class=\"checkout-status\">✅ Checked out for editing</div>
-                        </div>
-                        
-                        <div class=\"annotation-toolbar\">
-                            <div class=\"tool-group\">
-                                <button class=\"tool-btn active\" onclick=\"FastMediaAnnotation.setTool('select')\" title=\"Select\">👆</button>
-                                <button class=\"tool-btn\" onclick=\"FastMediaAnnotation.setTool('draw')\" title=\"Draw\">✏️</button>
-                                <button class=\"tool-btn\" onclick=\"FastMediaAnnotation.setTool('text')\" title=\"Add Text\">💬</button>
-                                <button class=\"tool-btn\" onclick=\"FastMediaAnnotation.setTool('arrow')\" title=\"Arrow\">➡️</button>
-                                <button class=\"tool-btn\" onclick=\"FastMediaAnnotation.setTool('rectangle')\" title=\"Rectangle\">⬜</button>
-                                <button class=\"tool-btn\" onclick=\"FastMediaAnnotation.setTool('circle')\" title=\"Circle\">⭕</button>
-                            </div>
-                            
-                            <div class=\"tool-group\">
-                                <label>Color:</label>
-                                <input type=\"color\" class=\"color-picker\" id=\"annotation-color\" value=\"#ff0000\" onchange=\"FastMediaAnnotation.setColor(this.value)\">
-                            </div>
-                            
-                            <div class=\"tool-group\">
-                                <label>Size:</label>
-                                <input type=\"range\" id=\"brush-size\" min=\"1\" max=\"20\" value=\"3\" onchange=\"FastMediaAnnotation.setBrushSize(this.value)\">
-                                <span id=\"brush-size-display\">3px</span>
-                            </div>
-                            
-                            <div class=\"tool-group\">
-                                <button class=\"tool-btn\" onclick=\"FastMediaAnnotation.undo()\" title=\"Undo\">↶</button>
-                                <button class=\"tool-btn\" onclick=\"FastMediaAnnotation.redo()\" title=\"Redo\">↷</button>
-                                <button class=\"tool-btn\" onclick=\"FastMediaAnnotation.clear()\" title=\"Clear All\">🗑️</button>
-                            </div>
-                        </div>
-                        
-                        <div class=\"annotation-workspace\">
-                            <canvas id=\"annotation-canvas\"></canvas>
-                        </div>
-                        
-                        <div class=\"annotation-footer\">
-                            <div>
-                                <button class=\"btn btn-secondary\" onclick=\"FastMediaAnnotation.cancel()\">Cancel</button>
-                            </div>
-                            <div>
-                                <button class=\"btn btn-success\" onclick=\"FastMediaAnnotation.saveAnnotation()\">💾 Save as New Version</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                document.body.appendChild(modal);
-                modal.style.display = 'block';
-            },
+                .annotation-container {
+                    position: absolute !important;
+                    top: 50% !important;
+                    left: 50% !important;
+                    transform: translate(-50%, -50%) !important;
+                    width: 90vw !important;
+                    max-width: 1200px !important;
+                    height: 85vh !important;
+                    background: white !important;
+                    border-radius: 8px !important;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+                }
+                .annotation-header {
+                    display: flex !important;
+                    justify-content: space-between !important;
+                    align-items: center !important;
+                    padding: 15px 25px !important;
+                    background: #f8f9fa !important;
+                    border-bottom: 2px solid #ddd !important;
+                    border-radius: 8px 8px 0 0 !important;
+                }
+                .annotation-toolbar {
+                    padding: 15px 25px !important;
+                    border-bottom: 1px solid #ddd !important;
+                    display: flex !important;
+                    gap: 15px !important;
+                    align-items: center !important;
+                    flex-wrap: wrap !important;
+                    background: #fff !important;
+                }
+                .annotation-workspace {
+                    flex: 1 !important;
+                    padding: 20px !important;
+                    display: flex !important;
+                    justify-content: center !important;
+                    align-items: center !important;
+                    background: #f9f9f9 !important;
+                    overflow: hidden !important;
+                }
+                .annotation-footer {
+                    padding: 15px 25px !important;
+                    border-top: 2px solid #ddd !important;
+                    display: flex !important;
+                    justify-content: space-between !important;
+                    background: #f8f9fa !important;
+                    border-radius: 0 0 8px 8px !important;
+                    align-items: center !important;
+                }
+                .close-btn {
+                    background: #dc3545 !important;
+                    color: white !important;
+                    border: none !important;
+                    font-size: 16px !important;
+                    cursor: pointer !important;
+                    padding: 8px 15px !important;
+                    border-radius: 4px !important;
+                    font-weight: bold !important;
+                }
+                #annotation-canvas {
+                    border: 2px solid #ddd !important;
+                    background: white !important;
+                    border-radius: 4px !important;
+                }
+                .tool-btn {
+                    padding: 8px 15px !important;
+                    border: 1px solid #ddd !important;
+                    background: #fff !important;
+                    border-radius: 4px !important;
+                    cursor: pointer !important;
+                    font-size: 14px !important;
+                    font-weight: bold !important;
+                }
+                .tool-btn:hover { background: #f8f9fa !important; }
+                .tool-btn.active { background: #0073aa !important; color: white !important; }
+                .btn {
+                    padding: 12px 25px !important;
+                    border: none !important;
+                    border-radius: 4px !important;
+                    cursor: pointer !important;
+                    font-weight: bold !important;
+                    font-size: 14px !important;
+                }
+                .btn-success { background: #28a745 !important; color: white !important; }
+                .btn-secondary { background: #6c757d !important; color: white !important; }
+            ');
             
-            initializeCanvas: function() {
-                this.canvas = new fabric.Canvas('annotation-canvas');
-                this.canvas.setWidth(800);
-                this.canvas.setHeight(600);
-                
-                // Load the original image
-                fabric.Image.fromURL(this.originalImageUrl, (img) => {
-                    const canvasWidth = 800;
-                    const canvasHeight = 600;
+            wp_add_inline_script('fabric-js', '
+                window.FastMediaAnnotation = {
+                    canvas: null,
+                    currentAttachmentId: null,
+                    currentTool: "draw",
                     
-                    // Scale image to fit canvas
-                    const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
-                    img.scale(scale);
-                    img.set({
-                        left: (canvasWidth - img.width * scale) / 2,
-                        top: (canvasHeight - img.height * scale) / 2,
-                        selectable: false,
-                        evented: false
-                    });
-                    
-                    this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas));
-                }, { crossOrigin: 'anonymous' });
-                
-                // Enable drawing mode by default
-                this.setTool('draw');
-            },
-            
-            setTool: function(tool) {
-                // Remove active class from all buttons
-                document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-                event.target.classList.add('active');
-                
-                this.currentTool = tool;
-                this.canvas.isDrawingMode = false;
-                this.canvas.selection = true;
-                
-                switch(tool) {
-                    case 'select':
-                        this.canvas.selection = true;
-                        break;
-                    case 'draw':
-                        this.canvas.isDrawingMode = true;
-                        this.canvas.freeDrawingBrush.width = parseInt(document.getElementById('brush-size').value);
-                        this.canvas.freeDrawingBrush.color = document.getElementById('annotation-color').value;
-                        break;
-                    case 'text':
-                        this.addText();
-                        break;
-                    case 'arrow':
-                        this.addArrow();
-                        break;
-                    case 'rectangle':
-                        this.addRectangle();
-                        break;
-                    case 'circle':
-                        this.addCircle();
-                        break;
-                }
-            },
-            
-            setColor: function(color) {
-                if (this.canvas.isDrawingMode) {
-                    this.canvas.freeDrawingBrush.color = color;
-                }
-            },
-            
-            setBrushSize: function(size) {
-                if (this.canvas.isDrawingMode) {
-                    this.canvas.freeDrawingBrush.width = parseInt(size);
-                }
-                document.getElementById('brush-size-display').textContent = size + 'px';
-            },
-            
-            addText: function() {
-                const text = new fabric.IText('Click to edit text', {
-                    left: 100,
-                    top: 100,
-                    fontFamily: 'Arial',
-                    fontSize: 20,
-                    fill: document.getElementById('annotation-color').value
-                });
-                this.canvas.add(text);
-                this.canvas.setActiveObject(text);
-            },
-            
-            addArrow: function() {
-                const arrow = new fabric.Group([
-                    new fabric.Line([0, 0, 100, 0], {
-                        stroke: document.getElementById('annotation-color').value,
-                        strokeWidth: 3
-                    }),
-                    new fabric.Triangle({
-                        left: 100,
-                        top: -5,
-                        width: 10,
-                        height: 10,
-                        fill: document.getElementById('annotation-color').value,
-                        angle: 90
-                    })
-                ], {
-                    left: 100,
-                    top: 100
-                });
-                this.canvas.add(arrow);
-            },
-            
-            addRectangle: function() {
-                const rect = new fabric.Rect({
-                    left: 100,
-                    top: 100,
-                    width: 100,
-                    height: 60,
-                    fill: 'transparent',
-                    stroke: document.getElementById('annotation-color').value,
-                    strokeWidth: 3
-                });
-                this.canvas.add(rect);
-            },
-            
-            addCircle: function() {
-                const circle = new fabric.Circle({
-                    left: 100,
-                    top: 100,
-                    radius: 50,
-                    fill: 'transparent',
-                    stroke: document.getElementById('annotation-color').value,
-                    strokeWidth: 3
-                });
-                this.canvas.add(circle);
-            },
-            
-            undo: function() {
-                // Simple undo implementation
-                const objects = this.canvas.getObjects();
-                if (objects.length > 0) {
-                    this.canvas.remove(objects[objects.length - 1]);
-                }
-            },
-            
-            redo: function() {
-                // Placeholder for redo functionality
-                console.log('Redo functionality - can be enhanced');
-            },
-            
-            clear: function() {
-                if (confirm('Clear all annotations?')) {
-                    this.canvas.clear();
-                    // Re-add background image
-                    this.initializeCanvas();
-                }
-            },
-            
-            saveAnnotation: function() {
-                if (confirm('Save this annotated version as a new image?')) {
-                    const imageData = this.canvas.toDataURL('image/png');
-                    
-                    fetch(fastmedia_annotation.ajax_url, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: new URLSearchParams({
-                            action: 'fastmedia_save_annotation',
-                            attachment_id: this.currentAttachmentId,
-                            image_data: imageData,
-                            nonce: fastmedia_annotation.nonce
+                    openEditor: function(attachmentId) {
+                        this.currentAttachmentId = attachmentId;
+                        
+                        fetch("' . admin_url('admin-ajax.php') . '", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                            body: "action=fastmedia_checkout_image&attachment_id=" + attachmentId
                         })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('Annotated version saved successfully!');
-                            this.closeModal();
-                            // Optionally reload the page to show the new version
-                            location.reload();
-                        } else {
-                            alert('Error saving annotation: ' + data.data);
-                        }
-                    });
-                }
-            },
-            
-            cancel: function() {
-                if (confirm('Cancel annotation? Any changes will be lost.')) {
-                    this.checkinImage();
-                    this.closeModal();
-                }
-            },
-            
-            checkinImage: function() {
-                fetch(fastmedia_annotation.ajax_url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                this.createModal();
+                            } else {
+                                alert("❌ Error: " + data.data);
+                            }
+                        });
                     },
-                    body: new URLSearchParams({
-                        action: 'fastmedia_checkin_image',
-                        attachment_id: this.currentAttachmentId,
-                        nonce: fastmedia_annotation.nonce
-                    })
-                });
-            },
-            
-            closeModal: function() {
-                const modal = document.getElementById('fastmedia-annotation-modal');
-                if (modal) {
-                    modal.style.display = 'none';
-                }
-            }
-        };
-        
-        // Close modal when clicking outside
-        document.addEventListener('click', function(e) {
-            const modal = document.getElementById('fastmedia-annotation-modal');
-            if (e.target === modal) {
-                FastMediaAnnotation.cancel();
-            }
-        });
-        ";
+                    
+                    createModal: function() {
+                        const existingModal = document.getElementById("fastmedia-annotation-modal");
+                        if (existingModal) existingModal.remove();
+                        
+                        const modal = document.createElement("div");
+                        modal.id = "fastmedia-annotation-modal";
+                        modal.innerHTML = `
+                            <div class="annotation-container">
+                                <div class="annotation-header">
+                                    <h3>🎨 Annotate Image #${this.currentAttachmentId}</h3>
+                                    <button class="close-btn" onclick="FastMediaAnnotation.closeModal()">✕ Close</button>
+                                </div>
+                                
+                                <div class="annotation-toolbar">
+                                    <button class="tool-btn active" onclick="FastMediaAnnotation.setTool(this, \'draw\')">✏️ Draw</button>
+                                    <button class="tool-btn" onclick="FastMediaAnnotation.setTool(this, \'text\')">💬 Text</button>
+                                    <button class="tool-btn" onclick="FastMediaAnnotation.setTool(this, \'arrow\')">➡️ Arrow</button>
+                                    
+                                    <span style="margin-left: 20px; font-weight: bold;">Color:</span>
+                                    <input type="color" id="annotation-color" value="#ff0000" onchange="FastMediaAnnotation.setColor(this.value)" style="width: 40px; height: 35px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
+                                    
+                                    <span style="margin-left: 15px; font-weight: bold;">Size:</span>
+                                    <input type="range" id="brush-size" min="1" max="20" value="3" onchange="FastMediaAnnotation.setBrushSize(this.value)" style="width: 100px;">
+                                    <span id="brush-size-display" style="font-weight: bold; margin-left: 5px;">3px</span>
+                                    
+                                    <button class="tool-btn" onclick="FastMediaAnnotation.clear()" style="margin-left: 20px; background: #dc3545; color: white;">🗑️ Clear</button>
+                                </div>
+                                
+                                <div class="annotation-workspace">
+                                    <canvas id="annotation-canvas"></canvas>
+                                </div>
+                                
+                                <div class="annotation-footer">
+                                    <button class="btn btn-secondary" onclick="FastMediaAnnotation.closeModal()">Cancel</button>
+                                    <button class="btn btn-success" onclick="FastMediaAnnotation.saveAnnotation()">💾 Save as New Version</button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        document.body.appendChild(modal);
+                        modal.style.display = "block";
+                        
+                        // Ensure modal shows on top
+                        setTimeout(() => {
+                            modal.style.display = "block";
+                            this.initializeCanvas();
+                        }, 50);
+                    },
+                    
+                    initializeCanvas: function() {
+                        this.canvas = new fabric.Canvas("annotation-canvas");
+                        this.canvas.setWidth(800);
+                        this.canvas.setHeight(600);
+                        
+                        const imageUrl = document.getElementById("asset-img").src;
+                        fabric.Image.fromURL(imageUrl, (img) => {
+                            const scale = Math.min(800 / img.width, 600 / img.height);
+                            img.scale(scale);
+                            img.set({
+                                left: (800 - img.width * scale) / 2,
+                                top: (600 - img.height * scale) / 2,
+                                selectable: false,
+                                evented: false
+                            });
+                            this.canvas.setBackgroundImage(img, this.canvas.renderAll.bind(this.canvas));
+                        }, { crossOrigin: "anonymous" });
+                        
+                        this.setTool(document.querySelector(".tool-btn.active"), "draw");
+                    },
+                    
+                    setTool: function(button, tool) {
+                        // Remove active from all buttons
+                        document.querySelectorAll(".tool-btn").forEach(btn => btn.classList.remove("active"));
+                        button.classList.add("active");
+                        
+                        this.currentTool = tool;
+                        console.log("Setting tool to:", tool);
+                        
+                        // Disable drawing mode first
+                        this.canvas.isDrawingMode = false;
+                        this.canvas.selection = true;
+                        
+                        if (tool === "draw") {
+                            this.canvas.isDrawingMode = true;
+                            this.canvas.selection = false;
+                            this.canvas.freeDrawingBrush.width = parseInt(document.getElementById("brush-size").value || 3);
+                            this.canvas.freeDrawingBrush.color = document.getElementById("annotation-color").value;
+                            console.log("Drawing mode enabled");
+                        } else if (tool === "text") {
+                            setTimeout(() => this.addText(), 100);
+                        } else if (tool === "arrow") {
+                            setTimeout(() => this.addArrow(), 100);
+                        }
+                    },
+                    
+                    setColor: function(color) {
+                        if (this.canvas.isDrawingMode) {
+                            this.canvas.freeDrawingBrush.color = color;
+                        }
+                    },
+                    
+                    setBrushSize: function(size) {
+                        if (this.canvas.isDrawingMode) {
+                            this.canvas.freeDrawingBrush.width = parseInt(size);
+                        }
+                        document.getElementById("brush-size-display").textContent = size + "px";
+                    },
+                    
+                    addText: function() {
+                        console.log("Adding text");
+                        const text = new fabric.IText("Click to edit", {
+                            left: 200,
+                            top: 200,
+                            fontFamily: "Arial",
+                            fontSize: 24,
+                            fill: document.getElementById("annotation-color").value,
+                            backgroundColor: "rgba(255,255,255,0.8)"
+                        });
+                        this.canvas.add(text);
+                        this.canvas.setActiveObject(text);
+                        text.enterEditing();
+                    },
+                    
+                    addArrow: function() {
+                        console.log("Adding arrow");
+                        const color = document.getElementById("annotation-color").value;
+                        const line = new fabric.Line([50, 50, 200, 50], {
+                            stroke: color,
+                            strokeWidth: 4,
+                            selectable: true
+                        });
+                        
+                        const triangle = new fabric.Triangle({
+                            left: 200,
+                            top: 40,
+                            width: 20,
+                            height: 20,
+                            fill: color,
+                            selectable: true
+                        });
+                        
+                        this.canvas.add(line);
+                        this.canvas.add(triangle);
+                    },
+                    
+                    clear: function() {
+                        if (confirm("Clear all annotations?")) {
+                            this.canvas.clear();
+                            this.initializeCanvas();
+                        }
+                    },
+                    
+                    saveAnnotation: function() {
+                        if (confirm("Save this annotated version as a new image?")) {
+                            const imageData = this.canvas.toDataURL("image/png");
+                            
+                            fetch("' . admin_url('admin-ajax.php') . '", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                                body: "action=fastmedia_save_annotation&attachment_id=" + this.currentAttachmentId + "&image_data=" + encodeURIComponent(imageData)
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    alert("✅ Annotated version saved successfully!");
+                                    this.closeModal();
+                                    location.reload();
+                                } else {
+                                    alert("❌ Error saving: " + data.data);
+                                }
+                            });
+                        }
+                    },
+                    
+                    closeModal: function() {
+                        const modal = document.getElementById("fastmedia-annotation-modal");
+                        if (modal) {
+                            modal.remove();
+                        }
+                    }
+                };
+                
+                console.log("✅ Fixed annotation system loaded");
+            ');
+        }
     }
 }
 
-// Initialize the annotation system
 new FastMedia_Annotation_System();
+?>
