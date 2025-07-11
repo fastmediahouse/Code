@@ -2,7 +2,9 @@ class FastMedia_Annotation_System {
     
     public function __construct() {
         add_action('wp_ajax_fastmedia_checkout_image', array($this, 'checkout_image_handler'));
+        add_action('wp_ajax_fastmedia_checkin_image', array($this, 'checkin_image_handler'));
         add_action('wp_ajax_fastmedia_save_annotation', array($this, 'save_annotation_handler'));
+        add_action('wp_ajax_fastmedia_heartbeat', array($this, 'heartbeat_handler'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_annotation_assets'));
     }
     
@@ -18,10 +20,56 @@ class FastMedia_Annotation_System {
             wp_send_json_error('Access denied');
         }
         
+        // Check if already checked out
+        $checkout_user = get_post_meta($attachment_id, '_annotation_checkout_user', true);
+        $checkout_time = get_post_meta($attachment_id, '_annotation_checkout_time', true);
+        
+        // Auto-release after 30 minutes
+        if ($checkout_user && $checkout_user != $user_id && ($checkout_time + 1800) > time()) {
+            wp_send_json_error('This image is currently being edited by another user. Please try again later.');
+        }
+        
+        // Check out the image
+        update_post_meta($attachment_id, '_annotation_checkout_user', $user_id);
+        update_post_meta($attachment_id, '_annotation_checkout_time', time());
+        
         wp_send_json_success(array(
-            'message' => 'Ready to annotate!',
+            'message' => 'Image checked out successfully',
             'attachment_id' => $attachment_id
         ));
+    }
+    
+    public function checkin_image_handler() {
+        if (!is_user_logged_in()) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $attachment_id = intval($_POST['attachment_id']);
+        $user_id = get_current_user_id();
+        
+        // Release the checkout
+        delete_post_meta($attachment_id, '_annotation_checkout_user');
+        delete_post_meta($attachment_id, '_annotation_checkout_time');
+        
+        wp_send_json_success('Image checked in successfully');
+    }
+    
+    public function heartbeat_handler() {
+        if (!is_user_logged_in()) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $attachment_id = intval($_POST['attachment_id']);
+        $user_id = get_current_user_id();
+        
+        // Update checkout time to keep the lock active
+        $checkout_user = get_post_meta($attachment_id, '_annotation_checkout_user', true);
+        if ($checkout_user == $user_id) {
+            update_post_meta($attachment_id, '_annotation_checkout_time', time());
+            wp_send_json_success('Heartbeat updated');
+        } else {
+            wp_send_json_error('Checkout expired');
+        }
     }
     
     public function save_annotation_handler() {
@@ -69,14 +117,19 @@ class FastMedia_Annotation_System {
             $attachment_metadata = wp_generate_attachment_metadata($new_attachment_id, $file_path);
             wp_update_attachment_metadata($new_attachment_id, $attachment_metadata);
             
+            // Copy labels from original
             $original_labels = get_field('fastmedia_asset_labels', $attachment_id);
             if ($original_labels) {
                 update_field('fastmedia_asset_labels', $original_labels, $new_attachment_id);
             }
             
+            // Add reference to original
+            update_post_meta($new_attachment_id, '_annotated_from', $attachment_id);
+            
             wp_send_json_success(array(
                 'message' => 'Annotated version saved successfully',
-                'new_attachment_id' => $new_attachment_id
+                'new_attachment_id' => $new_attachment_id,
+                'redirect_url' => '/asset-detail/?id=' . $new_attachment_id
             ));
         } else {
             wp_send_json_error('Failed to create new attachment');
@@ -105,13 +158,26 @@ class FastMedia_Annotation_System {
                     left: 50% !important;
                     transform: translate(-50%, -50%) !important;
                     width: 90vw !important;
-                    max-width: 1200px !important;
-                    height: 85vh !important;
+                    max-width: 1000px !important;
+                    height: 75vh !important;
+                    max-height: 700px !important;
                     background: white !important;
                     border-radius: 8px !important;
                     display: flex !important;
                     flex-direction: column !important;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+                }
+                @media (max-width: 768px) {
+                    .annotation-container {
+                        width: 95vw !important;
+                        height: 95vh !important;
+                    }
+                    .annotation-toolbar, .annotation-workspace {
+                        display: none !important;
+                    }
+                    .mobile-message {
+                        display: block !important;
+                    }
                 }
                 .annotation-header {
                     display: flex !important;
@@ -138,7 +204,8 @@ class FastMedia_Annotation_System {
                     justify-content: center !important;
                     align-items: center !important;
                     background: #f9f9f9 !important;
-                    overflow: hidden !important;
+                    overflow: auto !important;
+                    min-height: 0 !important;
                 }
                 .annotation-footer {
                     padding: 15px 25px !important;
@@ -163,6 +230,8 @@ class FastMedia_Annotation_System {
                     border: 2px solid #ddd !important;
                     background: white !important;
                     border-radius: 4px !important;
+                    max-width: 100% !important;
+                    max-height: 100% !important;
                 }
                 .tool-btn {
                     padding: 8px 15px !important;
@@ -185,6 +254,24 @@ class FastMedia_Annotation_System {
                 }
                 .btn-success { background: #28a745 !important; color: white !important; }
                 .btn-secondary { background: #6c757d !important; color: white !important; }
+                .mobile-message {
+                    display: none !important;
+                    text-align: center !important;
+                    padding: 40px !important;
+                    font-size: 18px !important;
+                    color: #333 !important;
+                }
+                .checkout-status {
+                    position: absolute !important;
+                    top: 10px !important;
+                    right: 10px !important;
+                    background: #ffc107 !important;
+                    color: #000 !important;
+                    padding: 5px 10px !important;
+                    border-radius: 4px !important;
+                    font-size: 12px !important;
+                    font-weight: bold !important;
+                }
             ');
             
             wp_add_inline_script('fabric-js', '
@@ -193,11 +280,20 @@ class FastMedia_Annotation_System {
                     currentAttachmentId: null,
                     currentImageUrl: null,
                     currentTool: "draw",
+                    heartbeatInterval: null,
+                    autoCheckinTimeout: null,
                     
                     openEditor: function(attachmentId, imageUrl) {
+                        // Check if mobile
+                        if (window.innerWidth <= 768) {
+                            alert("📱 The annotation tool is only available on desktop devices. Please use a computer to annotate images.");
+                            return;
+                        }
+                        
                         this.currentAttachmentId = attachmentId;
                         this.currentImageUrl = imageUrl;
                         
+                        // Check out the image
                         fetch("' . admin_url('admin-ajax.php') . '", {
                             method: "POST",
                             headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -207,9 +303,48 @@ class FastMedia_Annotation_System {
                         .then(data => {
                             if (data.success) {
                                 this.createModal();
+                                this.startHeartbeat();
+                                this.startAutoCheckin();
                             } else {
-                                alert("❌ Error: " + data.data);
+                                alert("❌ " + data.data);
                             }
+                        });
+                    },
+                    
+                    startHeartbeat: function() {
+                        // Send heartbeat every 2 minutes to maintain checkout
+                        this.heartbeatInterval = setInterval(() => {
+                            fetch("' . admin_url('admin-ajax.php') . '", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                                body: "action=fastmedia_heartbeat&attachment_id=" + this.currentAttachmentId
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (!data.success) {
+                                    alert("⚠️ Your editing session has expired. Please reload and try again.");
+                                    this.closeModal();
+                                }
+                            });
+                        }, 120000); // 2 minutes
+                    },
+                    
+                    startAutoCheckin: function() {
+                        // Auto check-in after 25 minutes
+                        this.autoCheckinTimeout = setTimeout(() => {
+                            alert("⏰ Your editing session is about to expire. Please save your work.");
+                            setTimeout(() => {
+                                this.checkinImage();
+                                this.closeModal();
+                            }, 300000); // 5 more minutes
+                        }, 1500000); // 25 minutes
+                    },
+                    
+                    checkinImage: function() {
+                        fetch("' . admin_url('admin-ajax.php') . '", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                            body: "action=fastmedia_checkin_image&attachment_id=" + this.currentAttachmentId
                         });
                     },
                     
@@ -219,7 +354,7 @@ class FastMedia_Annotation_System {
                         
                         const modal = document.createElement("div");
                         modal.id = "fastmedia-annotation-modal";
-                        modal.style.cssText = "position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; background: rgba(0,0,0,0.95) !important; z-index: 999999 !important; display: flex !important; align-items: center !important; justify-content: center !important;";
+                        modal.style.cssText = "position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(0,0,0,0.95) !important; z-index: 999999 !important; display: flex !important; align-items: center !important; justify-content: center !important; overflow: hidden !important;";
                         modal.innerHTML = `
                             <div class="annotation-container">
                                 <div class="annotation-header">
@@ -248,7 +383,7 @@ class FastMedia_Annotation_System {
                                 
                                 <div class="annotation-footer">
                                     <button class="btn btn-secondary" onclick="FastMediaAnnotation.closeModal()">Cancel</button>
-                                    <button class="btn btn-success" onclick="FastMediaAnnotation.saveAnnotation()">💾 Save as New Version</button>
+                                    <button class="btn btn-success" onclick="FastMediaAnnotation.saveAnnotation()">💾 Save as Copy</button>
                                 </div>
                             </div>
                         `;
@@ -264,18 +399,18 @@ class FastMedia_Annotation_System {
                     
                     initializeCanvas: function() {
                         this.canvas = new fabric.Canvas("annotation-canvas");
-                        this.canvas.setWidth(800);
-                        this.canvas.setHeight(600);
+                        this.canvas.setWidth(700);
+                        this.canvas.setHeight(450);
                         
                         // Use the passed image URL or fallback to finding the image element
                         const imageUrl = this.currentImageUrl || document.getElementById("asset-img").src;
                         
                         fabric.Image.fromURL(imageUrl, (img) => {
-                            const scale = Math.min(800 / img.width, 600 / img.height);
+                            const scale = Math.min(700 / img.width, 450 / img.height);
                             img.scale(scale);
                             img.set({
-                                left: (800 - img.width * scale) / 2,
-                                top: (600 - img.height * scale) / 2,
+                                left: (700 - img.width * scale) / 2,
+                                top: (450 - img.height * scale) / 2,
                                 selectable: false,
                                 evented: false
                             });
@@ -368,7 +503,7 @@ class FastMedia_Annotation_System {
                     },
                     
                     saveAnnotation: function() {
-                        if (confirm("Save this annotated version as a new image?")) {
+                        if (confirm("Save this annotated version as a new copy?")) {
                             const imageData = this.canvas.toDataURL("image/png");
                             
                             fetch("' . admin_url('admin-ajax.php') . '", {
@@ -379,9 +514,16 @@ class FastMedia_Annotation_System {
                             .then(response => response.json())
                             .then(data => {
                                 if (data.success) {
-                                    alert("✅ Annotated version saved successfully!");
+                                    alert("✅ Annotated copy saved successfully!");
+                                    this.checkinImage();
                                     this.closeModal();
-                                    location.reload();
+                                    
+                                    // Redirect to the new image
+                                    if (data.data.redirect_url) {
+                                        window.location.href = data.data.redirect_url;
+                                    } else {
+                                        location.reload();
+                                    }
                                 } else {
                                     alert("❌ Error saving: " + data.data);
                                 }
@@ -392,13 +534,24 @@ class FastMedia_Annotation_System {
                     closeModal: function() {
                         const modal = document.getElementById("fastmedia-annotation-modal");
                         if (modal) {
+                            // Check in the image
+                            this.checkinImage();
+                            
+                            // Clear intervals
+                            if (this.heartbeatInterval) {
+                                clearInterval(this.heartbeatInterval);
+                            }
+                            if (this.autoCheckinTimeout) {
+                                clearTimeout(this.autoCheckinTimeout);
+                            }
+                            
                             modal.remove();
                             document.body.style.overflow = ""; // Restore body scroll
                         }
                     }
                 };
                 
-                console.log("✅ Fixed annotation system loaded");
+                console.log("✅ FastMedia Annotation System with checkout/checkin loaded");
             ');
         }
     }
