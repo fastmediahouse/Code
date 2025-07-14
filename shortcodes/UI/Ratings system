@@ -1,0 +1,257 @@
+/**
+ * ✅ FastMedia Rating System (Thumbs Up/Down)
+ * Usage: echo fastmedia_rating_ui($attachment_id);
+ */
+
+function fastmedia_rating_ui($attachment_id) {
+    if (!is_user_logged_in() || !$attachment_id) return '';
+
+    $user_id = get_current_user_id();
+    
+    // Get current likes and dislikes
+    $likes = get_post_meta($attachment_id, '_image_likes', true) ?: array();
+    $dislikes = get_post_meta($attachment_id, '_image_dislikes', true) ?: array();
+    
+    // Ensure arrays
+    if (!is_array($likes)) $likes = array();
+    if (!is_array($dislikes)) $dislikes = array();
+    
+    // Check if current user has rated
+    $user_liked = in_array($user_id, $likes);
+    $user_disliked = in_array($user_id, $dislikes);
+    
+    ob_start();
+    ?>
+    <div class="fastmedia-rating-system" data-attachment-id="<?= esc_attr($attachment_id) ?>">
+        <button type="button" class="rating-btn rating-like <?= $user_liked ? 'active' : '' ?>" data-type="like">
+            👍 <span class="rating-count"><?= count($likes) ?></span>
+        </button>
+        <button type="button" class="rating-btn rating-dislike <?= $user_disliked ? 'active' : '' ?>" data-type="dislike">
+            👎 <span class="rating-count"><?= count($dislikes) ?></span>
+        </button>
+    </div>
+
+    <style>
+        .fastmedia-rating-system {
+            display: inline-flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .rating-btn {
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-family: inherit;
+            color: #333;
+        }
+        
+        .rating-btn:hover {
+            background: #e0e0e0;
+        }
+        
+        .rating-btn.active.rating-like {
+            background: #e3f2fd;
+            border-color: #2196F3;
+            color: #2196F3;
+        }
+        
+        .rating-btn.active.rating-dislike {
+            background: #ffebee;
+            border-color: #f44336;
+            color: #f44336;
+        }
+        
+        .rating-count {
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .rating-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+
+    <script>
+    (function() {
+        if (window.fastMediaRatingInitialized) return;
+        window.fastMediaRatingInitialized = true;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.rating-btn')) return;
+                
+                const btn = e.target.closest('.rating-btn');
+                const container = btn.closest('.fastmedia-rating-system');
+                if (!container) return;
+                
+                const attachmentId = container.dataset.attachmentId;
+                const ratingType = btn.dataset.type;
+                const likeBtn = container.querySelector('.rating-like');
+                const dislikeBtn = container.querySelector('.rating-dislike');
+                
+                // Disable buttons during request
+                likeBtn.disabled = true;
+                dislikeBtn.disabled = true;
+                
+                // Send AJAX request
+                const formData = new FormData();
+                formData.append('action', 'fastmedia_rate_image');
+                formData.append('attachment_id', attachmentId);
+                formData.append('rating_type', ratingType);
+                formData.append('nonce', '<?= wp_create_nonce("fastmedia_rating_nonce") ?>');
+                
+                fetch('<?= admin_url('admin-ajax.php') ?>', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update counts
+                        likeBtn.querySelector('.rating-count').textContent = data.data.likes;
+                        dislikeBtn.querySelector('.rating-count').textContent = data.data.dislikes;
+                        
+                        // Update active states
+                        likeBtn.classList.toggle('active', data.data.user_liked);
+                        dislikeBtn.classList.toggle('active', data.data.user_disliked);
+                    } else {
+                        console.error('Rating error:', data.data);
+                    }
+                    
+                    // Re-enable buttons
+                    likeBtn.disabled = false;
+                    dislikeBtn.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Rating error:', error);
+                    likeBtn.disabled = false;
+                    dislikeBtn.disabled = false;
+                });
+            });
+        });
+    })();
+    </script>
+    <?php
+    return ob_get_clean();
+}
+
+// AJAX handler for rating images
+add_action('wp_ajax_fastmedia_rate_image', function() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_rating_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    // Check if user is logged in
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in to rate images');
+    }
+    
+    // Get and validate input
+    $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+    $rating_type = isset($_POST['rating_type']) ? sanitize_text_field($_POST['rating_type']) : '';
+    $user_id = get_current_user_id();
+    
+    // Validate attachment exists
+    if (!$attachment_id || get_post_type($attachment_id) !== 'attachment') {
+        wp_send_json_error('Invalid image ID');
+    }
+    
+    // Validate rating type
+    if (!in_array($rating_type, ['like', 'dislike'])) {
+        wp_send_json_error('Invalid rating type');
+    }
+    
+    // Get current likes and dislikes
+    $likes = get_post_meta($attachment_id, '_image_likes', true);
+    $dislikes = get_post_meta($attachment_id, '_image_dislikes', true);
+    
+    // Initialize arrays if empty
+    if (!is_array($likes)) $likes = array();
+    if (!is_array($dislikes)) $dislikes = array();
+    
+    // Convert to integers to ensure proper comparison
+    $likes = array_map('intval', $likes);
+    $dislikes = array_map('intval', $dislikes);
+    
+    $user_liked = in_array($user_id, $likes);
+    $user_disliked = in_array($user_id, $dislikes);
+    
+    // Handle the rating logic
+    if ($rating_type === 'like') {
+        if ($user_liked) {
+            // User already liked, so remove the like (toggle off)
+            $likes = array_diff($likes, array($user_id));
+        } else {
+            // Add like and remove dislike if exists
+            $likes[] = $user_id;
+            $likes = array_unique($likes);
+            
+            if ($user_disliked) {
+                $dislikes = array_diff($dislikes, array($user_id));
+            }
+        }
+    } else { // dislike
+        if ($user_disliked) {
+            // User already disliked, so remove the dislike (toggle off)
+            $dislikes = array_diff($dislikes, array($user_id));
+        } else {
+            // Add dislike and remove like if exists
+            $dislikes[] = $user_id;
+            $dislikes = array_unique($dislikes);
+            
+            if ($user_liked) {
+                $likes = array_diff($likes, array($user_id));
+            }
+        }
+    }
+    
+    // Re-index arrays to ensure proper storage
+    $likes = array_values($likes);
+    $dislikes = array_values($dislikes);
+    
+    // Update the database
+    update_post_meta($attachment_id, '_image_likes', $likes);
+    update_post_meta($attachment_id, '_image_dislikes', $dislikes);
+    
+    // Log activity if desired
+    $activity_log = get_post_meta($attachment_id, 'fastmedia_activity_log', true);
+    if (!is_array($activity_log)) $activity_log = array();
+    
+    $user_info = get_userdata($user_id);
+    if ($user_info) {
+        $action = '';
+        if ($rating_type === 'like' && in_array($user_id, $likes)) {
+            $action = 'liked';
+        } elseif ($rating_type === 'like' && !in_array($user_id, $likes)) {
+            $action = 'removed like from';
+        } elseif ($rating_type === 'dislike' && in_array($user_id, $dislikes)) {
+            $action = 'disliked';
+        } elseif ($rating_type === 'dislike' && !in_array($user_id, $dislikes)) {
+            $action = 'removed dislike from';
+        }
+        
+        if ($action) {
+            $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' ' . $action . ' this image';
+            update_post_meta($attachment_id, 'fastmedia_activity_log', array_slice($activity_log, -50)); // Keep last 50 entries
+        }
+    }
+    
+    // Return the updated counts and user status
+    wp_send_json_success(array(
+        'likes' => count($likes),
+        'dislikes' => count($dislikes),
+        'user_liked' => in_array($user_id, $likes),
+        'user_disliked' => in_array($user_id, $dislikes)
+    ));
+});
