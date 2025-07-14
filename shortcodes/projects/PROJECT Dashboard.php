@@ -65,6 +65,7 @@ add_shortcode('fastmedia_project_dashboard', function () {
             line-height: 1.5;
             color: #333;
             box-sizing: border-box;
+            display: block;
         }
         
         .fm-pd-wrapper * {
@@ -72,52 +73,85 @@ add_shortcode('fastmedia_project_dashboard', function () {
         }
         
         .fm-pd-container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }
         
         .fm-pd-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 30px;
             padding-bottom: 20px;
             border-bottom: 2px solid #e0e0e0;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         
         .fm-pd-title {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: 600;
             color: #333;
-            margin: 0 0 20px 0;
+            margin: 0;
+        }
+        
+        .fm-pd-header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .fm-pd-btn-create {
+            background: #4CAF50;
+            color: white !important;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            transition: background 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .fm-pd-btn-create:hover {
+            background: #45a049;
+            color: white !important;
+            text-decoration: none;
         }
         
         .fm-pd-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 25px;
             margin-top: 20px;
         }
         
         .fm-pd-card {
             background: #ffffff;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             overflow: hidden;
-            transition: box-shadow 0.2s ease;
+            transition: transform 0.2s, box-shadow 0.2s;
             position: relative;
         }
         
         .fm-pd-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
         }
         
         .fm-pd-thumb-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             grid-template-rows: repeat(2, 1fr);
-            gap: 1px;
-            height: 180px;
-            background: #f0f0f0;
+            gap: 2px;
+            height: 200px;
+            background: #f5f5f5;
             cursor: pointer;
+            position: relative;
         }
         
         .fm-pd-thumb {
@@ -130,56 +164,94 @@ add_shortcode('fastmedia_project_dashboard', function () {
             height: 100%;
             object-fit: cover;
             display: block;
+            transition: transform 0.3s ease;
+        }
+        
+        .fm-pd-thumb:hover img {
+            transform: scale(1.05);
         }
         
         .fm-pd-empty-thumb {
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 180px;
-            background: #f5f5f5;
+            height: 200px;
+            background: #f0f0f0;
             color: #999;
-            font-size: 48px;
+            font-size: 60px;
+            cursor: pointer;
         }
         
         .fm-pd-card-body {
-            padding: 15px;
+            padding: 20px;
         }
         
         .fm-pd-project-name {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 600;
-            margin: 0 0 8px 0;
+            margin: 0 0 10px 0;
             color: #333;
         }
         
-        .fm-pd-asset-count {
-            font-size: 14px;
+        .fm-pd-project-stats {
+            display: flex;
+            gap: 20px;
+            margin: 15px 0;
+            padding: 15px 0;
+            border-top: 1px solid #eee;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .fm-pd-stat {
+            text-align: center;
+            flex: 1;
+        }
+        
+        .fm-pd-stat-value {
+            font-size: 22px;
+            font-weight: 600;
+            color: #333;
+            display: block;
+        }
+        
+        .fm-pd-stat-label {
+            font-size: 12px;
             color: #666;
-            margin: 0 0 12px 0;
+            margin-top: 2px;
+            display: block;
+        }
+        
+        .fm-pd-meta {
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
         }
         
         .fm-pd-actions {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
+            margin-top: 15px;
         }
         
         .fm-pd-btn {
-            padding: 6px 12px;
+            padding: 8px 16px;
             font-size: 13px;
             border: 1px solid #ddd;
             background: #fff;
             color: #333;
-            border-radius: 4px;
+            border-radius: 5px;
             cursor: pointer;
             text-decoration: none;
-            display: inline-block;
-            transition: background-color 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
         }
         
         .fm-pd-btn:hover {
             background: #f5f5f5;
+            border-color: #bbb;
             text-decoration: none;
             color: #333;
         }
@@ -188,16 +260,29 @@ add_shortcode('fastmedia_project_dashboard', function () {
             position: absolute;
             top: 10px;
             right: 10px;
+            z-index: 5;
         }
         
         .fm-pd-menu-btn {
             background: rgba(255,255,255,0.9);
-            border: 1px solid #ddd;
-            padding: 4px 8px;
-            border-radius: 4px;
+            border: none;
+            padding: 8px;
+            border-radius: 50%;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 20px;
             line-height: 1;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        
+        .fm-pd-menu-btn:hover {
+            background: rgba(255,255,255,1);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
         }
         
         .fm-pd-dropdown {
@@ -206,11 +291,13 @@ add_shortcode('fastmedia_project_dashboard', function () {
             right: 0;
             background: #fff;
             border: 1px solid #ddd;
-            border-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            min-width: 150px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            min-width: 200px;
             display: none;
             z-index: 10;
+            overflow: hidden;
+            margin-top: 5px;
         }
         
         .fm-pd-dropdown.fm-pd-show {
@@ -218,9 +305,11 @@ add_shortcode('fastmedia_project_dashboard', function () {
         }
         
         .fm-pd-dropdown-item {
-            display: block;
+            display: flex;
+            align-items: center;
+            gap: 10px;
             width: 100%;
-            padding: 8px 12px;
+            padding: 12px 16px;
             border: none;
             background: none;
             text-align: left;
@@ -228,11 +317,7 @@ add_shortcode('fastmedia_project_dashboard', function () {
             font-size: 14px;
             color: #333;
             text-decoration: none;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        
-        .fm-pd-dropdown-item:last-child {
-            border-bottom: none;
+            transition: background 0.2s;
         }
         
         .fm-pd-dropdown-item:hover {
@@ -244,10 +329,33 @@ add_shortcode('fastmedia_project_dashboard', function () {
             padding: 0;
         }
         
+        /* Empty state */
+        .fm-pd-empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .fm-pd-empty-state h3 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
         /* Responsive */
         @media (max-width: 768px) {
+            .fm-pd-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
             .fm-pd-grid {
                 grid-template-columns: 1fr;
+            }
+            
+            .fm-pd-title {
+                font-size: 24px;
+                margin-bottom: 15px;
             }
         }
     </style>
@@ -256,6 +364,11 @@ add_shortcode('fastmedia_project_dashboard', function () {
         <div class="fm-pd-container">
             <div class="fm-pd-header">
                 <h1 class="fm-pd-title">📁 My Projects</h1>
+                <div class="fm-pd-header-actions">
+                    <button class="fm-pd-btn-create" onclick="alert('Create project functionality coming soon')">
+                        + Create Project
+                    </button>
+                </div>
             </div>
             
             <div class="fm-pd-grid">
@@ -328,16 +441,45 @@ add_shortcode('fastmedia_project_dashboard', function () {
                         
                         <div class="fm-pd-card-body">
                             <h3 class="fm-pd-project-name"><?= esc_html($project) ?></h3>
-                            <p class="fm-pd-asset-count"><?= $asset_count ?> asset<?= $asset_count !== 1 ? 's' : '' ?></p>
+                            
+                            <div class="fm-pd-project-stats">
+                                <div class="fm-pd-stat">
+                                    <span class="fm-pd-stat-value"><?= $asset_count ?></span>
+                                    <span class="fm-pd-stat-label">Assets</span>
+                                </div>
+                                <div class="fm-pd-stat">
+                                    <span class="fm-pd-stat-value">0</span>
+                                    <span class="fm-pd-stat-label">Likes</span>
+                                </div>
+                                <div class="fm-pd-stat">
+                                    <span class="fm-pd-stat-value">0</span>
+                                    <span class="fm-pd-stat-label">Dislikes</span>
+                                </div>
+                            </div>
+                            
+                            <div class="fm-pd-meta">
+                                <small>Last updated: Recently</small>
+                            </div>
+                            
                             <div class="fm-pd-actions">
                                 <a href="/project-view/?project=<?= urlencode($project) ?>" class="fm-pd-btn">
-                                    View Project
+                                    👁️ View Project
+                                </a>
+                                <a href="/project-view/?project=<?= urlencode($project) ?>&view=contact" class="fm-pd-btn">
+                                    🎛️ Contact Sheet
                                 </a>
                             </div>
                         </div>
                     </div>
                 <?php endforeach; ?>
             </div>
+            
+            <?php if (empty($user_projects)): ?>
+            <div class="fm-pd-empty-state">
+                <h3>No projects yet</h3>
+                <p>Create your first project to start organizing your assets.</p>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
     
