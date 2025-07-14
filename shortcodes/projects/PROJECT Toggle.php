@@ -1,33 +1,38 @@
 /**
- * ✅ Fastmedia Project Toggle UI (Unified Favorite & Folder Picker)
- * Usage: echo fastmedia_project_toggle_ui($productID);
+ * ✅ Fastmedia Project Toggle UI - Using Pure WordPress Post Meta (No ACF)
+ * Usage: echo fastmedia_project_toggle_ui($attachment_id);
  */
 
-function fastmedia_project_toggle_ui($productID) {
-    if (!is_user_logged_in() || !$productID) return '';
+function fastmedia_project_toggle_ui($attachment_id) {
+    if (!is_user_logged_in() || !$attachment_id) return '';
 
     $user_id = get_current_user_id();
-    $folders = get_user_meta($user_id, 'solwee_favorites_folders', true);
-    $folders = is_array($folders) ? $folders : ['Default' => []];
-    $folder_keys = array_keys($folders);
-
-    // Detect all folders the image is in
-    $saved_in_folders = [];
-    foreach ($folders as $folder => $ids) {
-        if (in_array($productID, $ids)) {
-            $saved_in_folders[] = $folder;
-        }
-    }
+    
+    // Get user's projects from user meta
+    $user_projects = get_user_meta($user_id, 'fastmedia_user_projects', true);
+    $user_projects = is_array($user_projects) ? $user_projects : ['Default'];
+    
+    // Get this attachment's projects from post meta (not ACF)
+    $attachment_projects = get_post_meta($attachment_id, 'fastmedia_projects', true);
+    $attachment_projects = is_array($attachment_projects) ? $attachment_projects : [];
+    
+    // Get the last selected project for this user
+    $last_selected = get_user_meta($user_id, 'fastmedia_last_project', true) ?: 'Default';
 
     ob_start();
     ?>
-    <div class="fastmedia-project-toggle project-ui-inline" data-productid="<?= esc_attr($productID) ?>" data-saved='<?= json_encode($saved_in_folders) ?>'>
+    <div class="fastmedia-project-toggle" data-attachment-id="<?= esc_attr($attachment_id) ?>">
         <div class="project-toggle-row">
-            <div class="toggle-icon<?= in_array('Default', $saved_in_folders) ? ' active' : '' ?>" title="Add/remove from Project">❤️</div>
-            <select class="folder-picker">
-                <option value="" disabled selected>Select</option>
-                <?php foreach ($folder_keys as $folder): ?>
-                    <option value="<?= esc_attr($folder) ?>" <?= selected($folder, 'Default') ?>><?= esc_html($folder) ?></option>
+            <button type="button" class="toggle-btn <?= !empty($attachment_projects) ? 'active' : '' ?>" 
+                    title="<?= !empty($attachment_projects) ? 'Remove from project' : 'Add to project' ?>">
+                <span class="toggle-text"><?= !empty($attachment_projects) ? '➖' : '➕' ?></span>
+            </button>
+            <select class="project-picker">
+                <?php foreach ($user_projects as $project): ?>
+                    <option value="<?= esc_attr($project) ?>" 
+                            <?= selected(in_array($project, $attachment_projects) ? $project : $last_selected, $project) ?>>
+                        <?= esc_html($project) ?>
+                    </option>
                 <?php endforeach; ?>
                 <option value="__new__">➕ Create New Project</option>
             </select>
@@ -35,149 +40,266 @@ function fastmedia_project_toggle_ui($productID) {
     </div>
 
     <style>
-        .fastmedia-project-toggle.project-ui-inline {
-            display: flex;
-            justify-content: flex-start;
-            align-items: center;
-            margin-top: 8px;
+        .fastmedia-project-toggle {
+            display: inline-block;
         }
         .project-toggle-row {
             display: flex;
             gap: 10px;
             align-items: center;
         }
-        .toggle-icon {
-            background: rgba(0,0,0,0.6);
-            color: white;
-            padding: 4px 8px;
+        .toggle-btn {
+            background: #f5f5f5;
+            color: #333;
+            padding: 6px 10px;
             border-radius: 4px;
             font-size: 16px;
             cursor: pointer;
+            border: 1px solid #ddd;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
         }
-        .toggle-icon.active {
-            background: rgba(0, 128, 0, 0.7);
+        .toggle-btn:hover {
+            background: #e0e0e0;
         }
-        .folder-picker {
+        .toggle-btn.active {
+            background: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+        .project-picker {
             font-size: 13px;
-            padding: 4px 8px;
+            padding: 6px 10px;
             border-radius: 4px;
             background: #fff;
             border: 1px solid #ccc;
+            min-width: 150px;
         }
     </style>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.fastmedia-project-toggle').forEach(widget => {
-            const productID = widget.dataset.productid;
-            let savedIn = JSON.parse(widget.dataset.saved || '[]');
-            const toggle = widget.querySelector('.toggle-icon');
-            const select = widget.querySelector('.folder-picker');
-
-            function updateToggleUI(isActive) {
-                toggle.classList.toggle('active', isActive);
+    (function() {
+        document.addEventListener('DOMContentLoaded', function() {
+            const widget = document.querySelector('.fastmedia-project-toggle[data-attachment-id="<?= $attachment_id ?>"]');
+            if (!widget || widget.dataset.initialized) return;
+            widget.dataset.initialized = 'true';
+            
+            const attachmentId = widget.dataset.attachmentId;
+            const toggleBtn = widget.querySelector('.toggle-btn');
+            const toggleText = widget.querySelector('.toggle-text');
+            const projectPicker = widget.querySelector('.project-picker');
+            
+            // Get initial projects from PHP
+            let attachmentProjects = <?= json_encode($attachment_projects) ?>;
+            
+            function updateUI() {
+                const currentProject = projectPicker.value;
+                const isInProject = attachmentProjects.includes(currentProject);
+                
+                toggleBtn.classList.toggle('active', isInProject);
+                toggleText.textContent = isInProject ? '➖' : '➕';
+                toggleBtn.title = isInProject ? 
+                    'Remove from ' + currentProject + ' project' : 
+                    'Add to ' + currentProject + ' project';
             }
-
-            toggle.addEventListener('click', function () {
-                const folder = select.value;
-                if (!folder || folder === '__new__') return;
-                const isActive = savedIn.includes(folder);
-                const action = isActive ? 'solwee_remove_from_folder' : 'solwee_update_lightbox_foldered';
-
-                fetch('/wp-admin/admin-ajax.php', {
+            
+            toggleBtn.addEventListener('click', function() {
+                const project = projectPicker.value;
+                if (!project || project === '__new__') {
+                    alert('Please select a project first');
+                    return;
+                }
+                
+                const isInProject = attachmentProjects.includes(project);
+                const action = isInProject ? 'remove' : 'add';
+                
+                // Disable button during request
+                toggleBtn.disabled = true;
+                toggleBtn.style.opacity = '0.5';
+                
+                // Send AJAX request
+                const formData = new FormData();
+                formData.append('action', 'fastmedia_toggle_project');
+                formData.append('attachment_id', attachmentId);
+                formData.append('project', project);
+                formData.append('toggle_action', action);
+                formData.append('nonce', '<?= wp_create_nonce("fastmedia_project_nonce") ?>');
+                
+                fetch('<?= admin_url("admin-ajax.php") ?>', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `action=${action}&productID=${encodeURIComponent(productID)}&folder=${encodeURIComponent(folder)}`
+                    body: formData,
+                    credentials: 'same-origin'
                 })
-                .then(res => res.json())
+                .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        if (isActive) {
-                            savedIn = savedIn.filter(f => f !== folder);
+                        if (action === 'add') {
+                            if (!attachmentProjects.includes(project)) {
+                                attachmentProjects.push(project);
+                            }
                         } else {
-                            if (!savedIn.includes(folder)) savedIn.push(folder);
+                            attachmentProjects = attachmentProjects.filter(p => p !== project);
                         }
-                        updateToggleUI(savedIn.includes(folder));
+                        updateUI();
+                    } else {
+                        alert('Error: ' + (data.data || 'Unknown error'));
                     }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Network error. Please try again.');
+                })
+                .finally(() => {
+                    toggleBtn.disabled = false;
+                    toggleBtn.style.opacity = '1';
                 });
             });
-
-            select.addEventListener('change', function () {
-                if (select.value === '__new__') {
-                    const name = prompt('Enter new project name');
-                    if (!name) {
-                        select.value = 'Default';
-                        return;
+            
+            projectPicker.addEventListener('change', function() {
+                if (projectPicker.value === '__new__') {
+                    const newProject = prompt('Enter new project name:');
+                    if (newProject && newProject.trim()) {
+                        // Add new project via AJAX
+                        const formData = new FormData();
+                        formData.append('action', 'fastmedia_create_project');
+                        formData.append('project_name', newProject.trim());
+                        formData.append('nonce', '<?= wp_create_nonce("fastmedia_project_nonce") ?>');
+                        
+                        fetch('<?= admin_url("admin-ajax.php") ?>', {
+                            method: 'POST',
+                            body: formData,
+                            credentials: 'same-origin'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Add option to select
+                                const option = document.createElement('option');
+                                option.value = newProject;
+                                option.textContent = newProject;
+                                projectPicker.insertBefore(option, projectPicker.lastElementChild);
+                                projectPicker.value = newProject;
+                                updateUI();
+                            } else {
+                                alert('Error creating project: ' + (data.data || 'Unknown error'));
+                                projectPicker.value = '<?= esc_js($last_selected) ?>';
+                            }
+                        });
+                    } else {
+                        projectPicker.value = '<?= esc_js($last_selected) ?>';
                     }
-                    fetch('/wp-admin/admin-ajax.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: `action=solwee_create_folder&name=${encodeURIComponent(name)}`
-                    })
-                    .then(res => res.json())
-                    .then(res => {
-                        if (res.success) {
-                            const opt = document.createElement('option');
-                            opt.value = name;
-                            opt.textContent = name;
-                            select.insertBefore(opt, select.lastElementChild);
-                            select.value = name;
-                            savedIn.push(name);
-                            updateToggleUI(true);
-                        } else {
-                            alert('Failed to create project');
-                            select.value = 'Default';
-                        }
-                    });
                 } else {
-                    updateToggleUI(savedIn.includes(select.value));
+                    // Save last selected project
+                    const formData = new FormData();
+                    formData.append('action', 'fastmedia_save_last_project');
+                    formData.append('project', projectPicker.value);
+                    formData.append('nonce', '<?= wp_create_nonce("fastmedia_project_nonce") ?>');
+                    
+                    fetch('<?= admin_url("admin-ajax.php") ?>', {
+                        method: 'POST',
+                        body: formData,
+                        credentials: 'same-origin'
+                    });
+                    
+                    updateUI();
                 }
             });
+            
+            // Initial UI update
+            updateUI();
         });
-    });
+    })();
     </script>
     <?php
     return ob_get_clean();
 }
 
-// ✅ AJAX: Create new folder (project)
-add_action('wp_ajax_solwee_create_folder', function () {
-    if (!is_user_logged_in()) wp_send_json_error();
-    $user_id = get_current_user_id();
-    $name = sanitize_text_field($_POST['name'] ?? '');
-    if (!$name) wp_send_json_error();
-
-    $folders = get_user_meta($user_id, 'solwee_favorites_folders', true);
-    $folders = is_array($folders) ? $folders : [];
-    if (!isset($folders[$name])) {
-        $folders[$name] = [];
-        update_user_meta($user_id, 'solwee_favorites_folders', $folders);
+// AJAX handler for toggling project
+add_action('wp_ajax_fastmedia_toggle_project', function() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
+        wp_send_json_error('Security check failed');
     }
-    wp_send_json_success();
+    
+    $attachment_id = intval($_POST['attachment_id']);
+    $project = sanitize_text_field($_POST['project']);
+    $action = sanitize_text_field($_POST['toggle_action']);
+    $user_id = get_current_user_id();
+    
+    // Verify user owns this attachment
+    if (get_post_field('post_author', $attachment_id) != $user_id) {
+        wp_send_json_error('Permission denied');
+    }
+    
+    // Get current projects using post meta (not ACF)
+    $projects = get_post_meta($attachment_id, 'fastmedia_projects', true);
+    $projects = is_array($projects) ? $projects : [];
+    
+    if ($action === 'add') {
+        if (!in_array($project, $projects)) {
+            $projects[] = $project;
+            update_post_meta($attachment_id, 'fastmedia_projects', $projects);
+            
+            // Log activity
+            $activity_log = get_post_meta($attachment_id, 'fastmedia_activity_log', true) ?: [];
+            $user_info = get_userdata($user_id);
+            $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' added to project: ' . $project;
+            update_post_meta($attachment_id, 'fastmedia_activity_log', array_slice($activity_log, -50));
+        }
+    } else {
+        $projects = array_values(array_filter($projects, function($p) use ($project) {
+            return $p !== $project;
+        }));
+        update_post_meta($attachment_id, 'fastmedia_projects', $projects);
+        
+        // Log activity
+        $activity_log = get_post_meta($attachment_id, 'fastmedia_activity_log', true) ?: [];
+        $user_info = get_userdata($user_id);
+        $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' removed from project: ' . $project;
+        update_post_meta($attachment_id, 'fastmedia_activity_log', array_slice($activity_log, -50));
+    }
+    
+    wp_send_json_success(['projects' => $projects]);
 });
 
-// ✅ AJAX: Remove image from folder (project)
-add_action('wp_ajax_solwee_remove_from_folder', function () {
-    if (!is_user_logged_in()) {
-        wp_send_json_error(['message' => 'Not logged in']);
+// AJAX handler for creating new project
+add_action('wp_ajax_fastmedia_create_project', function() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
+        wp_send_json_error('Security check failed');
     }
-
+    
     $user_id = get_current_user_id();
-    $productID = sanitize_text_field($_POST['productID'] ?? '');
-    $folder = sanitize_text_field($_POST['folder'] ?? 'Default');
-
-    if (empty($productID)) {
-        wp_send_json_error(['message' => 'No product ID provided']);
+    $project_name = sanitize_text_field($_POST['project_name']);
+    
+    if (empty($project_name)) {
+        wp_send_json_error('Project name cannot be empty');
     }
-
-    $folders = get_user_meta($user_id, 'solwee_favorites_folders', true);
-    $folders = is_array($folders) ? $folders : [];
-
-    if (isset($folders[$folder])) {
-        $folders[$folder] = array_values(array_filter($folders[$folder], fn($id) => $id !== $productID));
-        update_user_meta($user_id, 'solwee_favorites_folders', $folders);
-        wp_send_json_success(['message' => "✅ Removed from folder: {$folder}"]);
-    } else {
-        wp_send_json_success(['message' => "✅ Folder not found, nothing to remove"]);
+    
+    // Get user's projects
+    $user_projects = get_user_meta($user_id, 'fastmedia_user_projects', true) ?: ['Default'];
+    
+    if (in_array($project_name, $user_projects)) {
+        wp_send_json_error('Project already exists');
     }
+    
+    // Add new project
+    $user_projects[] = $project_name;
+    update_user_meta($user_id, 'fastmedia_user_projects', $user_projects);
+    
+    wp_send_json_success(['project' => $project_name]);
+});
+
+// AJAX handler for saving last selected project
+add_action('wp_ajax_fastmedia_save_last_project', function() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    $project = sanitize_text_field($_POST['project']);
+    update_user_meta(get_current_user_id(), 'fastmedia_last_project', $project);
+    
+    wp_send_json_success();
 });
