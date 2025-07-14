@@ -1,282 +1,373 @@
-add_shortcode('solwee_lightbox_dashboard', function () {
+/**
+ * FastMedia Project Dashboard - Stage 1: Safe Base Structure
+ * All CSS prefixed with .fm-pd- to ensure complete isolation
+ * All JavaScript scoped to prevent conflicts
+ */
+
+add_shortcode('fastmedia_project_dashboard', function () {
     if (!is_user_logged_in()) {
-        return '<p>Please <a href="/signin/">sign in</a> to view your saved images.</p>';
+        return '<p>Please <a href="/signin/">sign in</a> to view your projects.</p>';
     }
 
     $user_id = get_current_user_id();
-    $folders = get_user_meta($user_id, 'solwee_favorites_folders', true);
-    $folders = is_array($folders) ? $folders : ['Default' => []];
-
-    // ✅ Handle CSV Export EARLY to avoid headers already sent
-    if (!empty($_POST['export_folder']) && isset($folders[$_POST['export_folder']])) {
-        $name = sanitize_file_name($_POST['export_folder']) . '_images.csv';
-
+    
+    // Get user's projects from the toggle system
+    $user_projects = get_user_meta($user_id, 'fastmedia_user_projects', true);
+    $user_projects = is_array($user_projects) ? $user_projects : ['Default'];
+    
+    // Handle CSV Export EARLY (before any output)
+    if (!empty($_POST['fm_pd_export']) && isset($_POST['fm_pd_project'])) {
+        $project = sanitize_text_field($_POST['fm_pd_project']);
+        $filename = sanitize_file_name($project) . '_assets_' . date('Y-m-d') . '.csv';
+        
         // Clear all output buffers
         while (ob_get_level()) ob_end_clean();
-
+        
+        // Get all attachments in this project
+        $args = array(
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'author' => $user_id,
+            'meta_query' => array(
+                array(
+                    'key' => 'fastmedia_projects',
+                    'value' => serialize($project),
+                    'compare' => 'LIKE'
+                )
+            ),
+            'posts_per_page' => -1
+        );
+        $attachments = get_posts($args);
+        
         header("Content-Type: text/csv");
-        header("Content-Disposition: attachment; filename=\"$name\"");
+        header("Content-Disposition: attachment; filename=\"$filename\"");
         header("Pragma: no-cache");
         header("Expires: 0");
-        echo "productID\n" . implode("\n", $folders[$_POST['export_folder']]);
-        exit;
-    }
-
-    // ✅ Handle delete
-    if (!empty($_POST['delete_folder']) && isset($folders[$_POST['delete_folder']])) {
-        unset($folders[$_POST['delete_folder']]);
-        update_user_meta($user_id, 'solwee_favorites_folders', $folders);
-        echo "<p style='color:red'>Folder deleted.</p><script>setTimeout(() => location.reload(), 1000)</script>";
-    }
-
-    // ✅ Handle rename
-    if (!empty($_POST['rename_from']) && !empty($_POST['rename_to']) && isset($folders[$_POST['rename_from']])) {
-        $from = sanitize_text_field($_POST['rename_from']);
-        $to = sanitize_text_field($_POST['rename_to']);
-        if (!isset($folders[$to])) {
-            $folders[$to] = $folders[$from];
-            unset($folders[$from]);
-            update_user_meta($user_id, 'solwee_favorites_folders', $folders);
-            echo "<script>location.href='/my-lightbox/'</script>";
-        } else {
-            echo "<p style='color:red'>Folder name already exists.</p>";
+        
+        echo "ID,Filename,URL\n";
+        foreach ($attachments as $attachment) {
+            echo $attachment->ID . ',"' . basename(get_attached_file($attachment->ID)) . '","' . wp_get_attachment_url($attachment->ID) . '"' . "\n";
         }
+        exit;
     }
 
     ob_start();
     ?>
+    
+    <!-- Completely isolated CSS with unique prefix -->
     <style>
-        .solwee-lightbox-content {
+        /* Container wrapper for complete isolation */
+        .fm-pd-wrapper {
+            /* Reset inherited styles */
+            all: initial;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 16px;
+            line-height: 1.5;
+            color: #333;
+            box-sizing: border-box;
+        }
+        
+        .fm-pd-wrapper * {
+            box-sizing: inherit;
+        }
+        
+        .fm-pd-container {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 20px;
         }
-        .solwee-folder-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
+        
+        .fm-pd-header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
         }
-        .solwee-folder-header form {
-            display: flex;
-            gap: 10px;
-            align-items: center;
+        
+        .fm-pd-title {
+            font-size: 28px;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 20px 0;
         }
-        .solwee-folder-header input {
-            padding: 8px 12px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-        }
-        .solwee-folder-header button {
-            padding: 8px 16px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        .solwee-folder-grid {
+        
+        .fm-pd-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 20px;
+            margin-top: 20px;
         }
-        .solwee-folder-card {
-            position: relative;
-            background: #fff;
+        
+        .fm-pd-card {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
             border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-            padding: 10px;
-            overflow: visible;
-        }
-        .solwee-folder-thumb-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
-            gap: 3px;
-            height: 140px;
             overflow: hidden;
-            border-radius: 6px;
+            transition: box-shadow 0.2s ease;
+            position: relative;
+        }
+        
+        .fm-pd-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .fm-pd-thumb-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 1px;
+            height: 180px;
+            background: #f0f0f0;
             cursor: pointer;
         }
-        .solwee-folder-thumb-grid img {
+        
+        .fm-pd-thumb {
+            background: #e0e0e0;
+            overflow: hidden;
+        }
+        
+        .fm-pd-thumb img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            border-radius: 4px;
+            display: block;
         }
-        .solwee-folder-title {
-            font-weight: bold;
-            margin-top: 10px;
-            font-size: 16px;
-        }
-        .solwee-folder-meta {
-            font-size: 12px;
-            color: #777;
-        }
-        .solwee-menu-btn {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            background: none;
-            border: none;
-            font-size: 20px;
-            color: #000;
-            cursor: pointer;
-        }
-        .solwee-folder-menu {
-            position: absolute;
-            bottom: 45px;
-            right: 0;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            display: none;
-            z-index: 1000;
-            min-width: 160px;
-            padding: 6px 0;
-        }
-        .solwee-folder-menu button {
+        
+        .fm-pd-empty-thumb {
             display: flex;
             align-items: center;
-            gap: 10px;
-            width: 100%;
-            padding: 10px 16px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 15px;
-            color: #000;
-            text-align: left;
+            justify-content: center;
+            height: 180px;
+            background: #f5f5f5;
+            color: #999;
+            font-size: 48px;
         }
-        .solwee-folder-menu form {
+        
+        .fm-pd-card-body {
+            padding: 15px;
+        }
+        
+        .fm-pd-project-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+            color: #333;
+        }
+        
+        .fm-pd-asset-count {
+            font-size: 14px;
+            color: #666;
+            margin: 0 0 12px 0;
+        }
+        
+        .fm-pd-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .fm-pd-btn {
+            padding: 6px 12px;
+            font-size: 13px;
+            border: 1px solid #ddd;
+            background: #fff;
+            color: #333;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: background-color 0.2s ease;
+        }
+        
+        .fm-pd-btn:hover {
+            background: #f5f5f5;
+            text-decoration: none;
+            color: #333;
+        }
+        
+        .fm-pd-menu {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        
+        .fm-pd-menu-btn {
+            background: rgba(255,255,255,0.9);
+            border: 1px solid #ddd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+        }
+        
+        .fm-pd-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            min-width: 150px;
+            display: none;
+            z-index: 10;
+        }
+        
+        .fm-pd-dropdown.fm-pd-show {
+            display: block;
+        }
+        
+        .fm-pd-dropdown-item {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            background: none;
+            text-align: left;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            text-decoration: none;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .fm-pd-dropdown-item:last-child {
+            border-bottom: none;
+        }
+        
+        .fm-pd-dropdown-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .fm-pd-form-inline {
             margin: 0;
             padding: 0;
         }
-        .solwee-folder-menu form button {
-            all: unset;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            width: 100%;
-            padding: 10px 16px;
-            font-size: 15px;
-            cursor: pointer;
-            color: #000;
-        }
-        .solwee-folder-menu button:hover,
-        .solwee-folder-menu form button:hover {
-            background: #f9f9f9;
-        }
-        .solwee-rename-form {
-            display: none;
-            margin-top: 10px;
-            text-align: center;
-        }
-        .solwee-rename-form input {
-            width: 80%;
-            max-width: 160px;
-            padding: 6px;
-            margin-bottom: 8px;
-        }
-        .solwee-rename-form button {
-            padding: 6px 12px;
-            background: #3b82f6;
-            color: #fff;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .fm-pd-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 
+    <div class="fm-pd-wrapper">
+        <div class="fm-pd-container">
+            <div class="fm-pd-header">
+                <h1 class="fm-pd-title">📁 My Projects</h1>
+            </div>
+            
+            <div class="fm-pd-grid">
+                <?php foreach ($user_projects as $project): 
+                    // Get project stats
+                    $args = array(
+                        'post_type' => 'attachment',
+                        'post_status' => 'inherit',
+                        'author' => $user_id,
+                        'meta_query' => array(
+                            array(
+                                'key' => 'fastmedia_projects',
+                                'value' => serialize($project),
+                                'compare' => 'LIKE'
+                            )
+                        ),
+                        'posts_per_page' => -1
+                    );
+                    $attachments = get_posts($args);
+                    $asset_count = count($attachments);
+                    $thumbnails = array_slice($attachments, 0, 4);
+                ?>
+                    <div class="fm-pd-card">
+                        <div class="fm-pd-menu">
+                            <button class="fm-pd-menu-btn" onclick="fmPdToggleMenu(this)">⋮</button>
+                            <div class="fm-pd-dropdown">
+                                <a href="/project-view/?project=<?= urlencode($project) ?>" class="fm-pd-dropdown-item">
+                                    👁️ View Project
+                                </a>
+                                <button class="fm-pd-dropdown-item" onclick="navigator.clipboard.writeText('<?= site_url('/project-view/?project=' . urlencode($project)) ?>'); alert('Link copied!')">
+                                    📤 Share Link
+                                </button>
+                                <form method="post" class="fm-pd-form-inline" target="fm_pd_export_frame">
+                                    <input type="hidden" name="fm_pd_export" value="1">
+                                    <input type="hidden" name="fm_pd_project" value="<?= esc_attr($project) ?>">
+                                    <button type="submit" class="fm-pd-dropdown-item">
+                                        📦 Export CSV
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <?php if (!empty($thumbnails)): ?>
+                            <div class="fm-pd-thumb-grid" onclick="window.location.href='/project-view/?project=<?= urlencode($project) ?>'">
+                                <?php 
+                                $thumb_count = 0;
+                                foreach ($thumbnails as $thumb): 
+                                    $thumb_url = wp_get_attachment_image_url($thumb->ID, 'thumbnail');
+                                    if ($thumb_url):
+                                ?>
+                                    <div class="fm-pd-thumb">
+                                        <img src="<?= esc_url($thumb_url) ?>" alt="" loading="lazy">
+                                    </div>
+                                <?php 
+                                    $thumb_count++;
+                                    endif;
+                                endforeach; 
+                                
+                                // Fill empty slots
+                                for ($i = $thumb_count; $i < 4; $i++):
+                                ?>
+                                    <div class="fm-pd-thumb"></div>
+                                <?php endfor; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="fm-pd-empty-thumb" onclick="window.location.href='/project-view/?project=<?= urlencode($project) ?>'">
+                                📁
+                            </div>
+                        <?php endif; ?>
+                        
+                        <div class="fm-pd-card-body">
+                            <h3 class="fm-pd-project-name"><?= esc_html($project) ?></h3>
+                            <p class="fm-pd-asset-count"><?= $asset_count ?> asset<?= $asset_count !== 1 ? 's' : '' ?></p>
+                            <div class="fm-pd-actions">
+                                <a href="/project-view/?project=<?= urlencode($project) ?>" class="fm-pd-btn">
+                                    View Project
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    
+    <iframe name="fm_pd_export_frame" style="display:none;"></iframe>
+
     <script>
-        function toggleRename(folderId) {
-            document.querySelectorAll('.solwee-rename-form').forEach(f => f.style.display = 'none');
-            const el = document.getElementById('rename-form-' + folderId);
-            if (el) el.style.display = 'block';
-        }
-
-        function toggleMenu(el) {
-            document.querySelectorAll('.solwee-folder-menu').forEach(menu => {
-                if (menu !== el.nextElementSibling) menu.style.display = 'none';
-            });
-            const menu = el.nextElementSibling;
-            menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
-        }
-
-        document.addEventListener('click', function (e) {
-            if (!e.target.classList.contains('solwee-menu-btn')) {
-                document.querySelectorAll('.solwee-folder-menu').forEach(m => m.style.display = 'none');
+    // Scoped JavaScript - no global functions
+    (function() {
+        window.fmPdToggleMenu = function(btn) {
+            const dropdown = btn.nextElementSibling;
+            const wasOpen = dropdown.classList.contains('fm-pd-show');
+            
+            // Close all dropdowns
+            document.querySelectorAll('.fm-pd-dropdown').forEach(d => d.classList.remove('fm-pd-show'));
+            
+            // Toggle this one
+            if (!wasOpen) {
+                dropdown.classList.add('fm-pd-show');
+            }
+        };
+        
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.fm-pd-menu')) {
+                document.querySelectorAll('.fm-pd-dropdown').forEach(d => d.classList.remove('fm-pd-show'));
             }
         });
+    })();
     </script>
 
-    <div class="solwee-lightbox-content">
-        <div class="solwee-folder-header">
-            <h2>Your Saved Images</h2>
-            <form method="post">
-                <input type="text" name="new_folder" placeholder="New folder name..." required>
-                <button type="submit">Create Folder</button>
-            </form>
-        </div>
-
-        <div class="solwee-folder-grid">
-            <?php foreach ($folders as $folder => $ids): ?>
-                <div class="solwee-folder-card">
-                    <div class="solwee-folder-thumb-grid" onclick="window.location.href='/lightbox-view/?folder=<?php echo urlencode($folder); ?>'">
-                        <?php
-                        $thumbs = array_slice($ids, 0, 4);
-                        foreach ($thumbs as $id):
-                            if (!$id) continue;
-                            $image = esc_url(home_url("/?solwee_image_proxy=$id"));
-                            echo "<img src='{$image}' alt='Preview for {$id}' onerror=\"this.style.display='none'\">";
-                        endforeach;
-                        ?>
-                    </div>
-                    <div class="solwee-folder-title"><?php echo esc_html($folder); ?></div>
-                    <div class="solwee-folder-meta"><?php echo count($ids); ?> saved image<?php echo count($ids) === 1 ? '' : 's'; ?></div>
-
-                    <button class="solwee-menu-btn" onclick="toggleMenu(this)">⋮</button>
-
-                    <div class="solwee-folder-menu">
-                        <button onclick="toggleRename('<?php echo md5($folder); ?>')">✏️ Rename</button>
-                        <form method="post" onsubmit="return confirm('Delete this folder?');">
-                            <input type="hidden" name="delete_folder" value="<?php echo esc_attr($folder); ?>">
-                            <button type="submit">🗑️ Delete</button>
-                        </form>
-                        <button onclick="navigator.clipboard.writeText('<?php echo site_url('/lightbox-view/?folder=' . urlencode($folder)); ?>'); alert('Link copied!')">📤 Share</button>
-                        <form method="post" target="solwee_export_frame">
-                            <input type="hidden" name="export_folder" value="<?php echo esc_attr($folder); ?>">
-                            <button type="submit">📦 Export</button>
-                        </form>
-                    </div>
-
-                    <div id="rename-form-<?php echo md5($folder); ?>" class="solwee-rename-form">
-                        <form method="post">
-                            <input type="hidden" name="rename_from" value="<?php echo esc_attr($folder); ?>">
-                            <input type="text" name="rename_to" value="<?php echo esc_attr($folder); ?>" required>
-                            <button type="submit">Save</button>
-                        </form>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-
-        <?php
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['new_folder'])) {
-            $new = sanitize_text_field($_POST['new_folder']);
-            if (!isset($folders[$new])) {
-                $folders[$new] = [];
-                update_user_meta($user_id, 'solwee_favorites_folders', $folders);
-                echo "<p style='color:green'>New folder '{$new}' created.</p>
-                      <script>setTimeout(() => location.reload(), 1500)</script>";
-            } else {
-                echo "<p style='color:red'>Folder already exists.</p>";
-            }
-        }
-        ?>
-    </div>
-
-    <iframe name="solwee_export_frame" style="display:none;"></iframe>
     <?php
     return ob_get_clean();
 });
