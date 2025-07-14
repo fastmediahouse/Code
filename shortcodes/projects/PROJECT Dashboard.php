@@ -1,12 +1,5 @@
-// Handle Save Project Note
-    if (!empty($_POST['fm_pd_note_project']) && isset($_POST['fm_pd_project_note'])) {
-        $project = sanitize_text_field($_POST['fm_pd_note_project']);
-        $note = sanitize_textarea_field($_POST['fm_pd_project_note']);
-        
-        update_user_meta($user_id, 'fastmedia_project_note_' . $project, $note);
-        echo '<div style="background:#e8f5e9;color:#2e7d32;padding:15px;margin:20px 0;border-radius:5px;">✅ Project note saved successfully!</div>';
-    }/**
- * FastMedia Project Dashboard - Safe Version with All Features
+/**
+ * FastMedia Project Dashboard - Complete Code with All Features
  * All CSS prefixed with .fm-pd- to ensure complete isolation
  */
 
@@ -171,8 +164,167 @@ add_shortcode('fastmedia_project_dashboard', function () {
             }
         }
     }
+    
+    // Handle Save Project Note
+    if (!empty($_POST['fm_pd_note_project']) && isset($_POST['fm_pd_project_note'])) {
+        $project = sanitize_text_field($_POST['fm_pd_note_project']);
+        $note = sanitize_textarea_field($_POST['fm_pd_project_note']);
+        
+        update_user_meta($user_id, 'fastmedia_project_note_' . $project, $note);
+        echo '<div style="background:#e8f5e9;color:#2e7d32;padding:15px;margin:20px 0;border-radius:5px;">✅ Project note saved successfully!</div>';
+    }
+    
+    // Handle Move Assets
+    if (!empty($_POST['fm_pd_move_from']) && !empty($_POST['fm_pd_move_to'])) {
+        $from_project = sanitize_text_field($_POST['fm_pd_move_from']);
+        $to_project = sanitize_text_field($_POST['fm_pd_move_to']);
+        
+        if ($from_project !== $to_project) {
+            // Get all attachments in source project
+            $args = array(
+                'post_type' => 'attachment',
+                'post_status' => 'inherit',
+                'author' => $user_id,
+                'meta_query' => array(
+                    array(
+                        'key' => 'fastmedia_projects',
+                        'value' => serialize($from_project),
+                        'compare' => 'LIKE'
+                    )
+                ),
+                'posts_per_page' => -1
+            );
+            $attachments = get_posts($args);
+            
+            $moved_count = 0;
+            foreach ($attachments as $attachment) {
+                $projects = get_post_meta($attachment->ID, 'fastmedia_projects', true);
+                if (is_array($projects)) {
+                    // Remove from source project
+                    $projects = array_filter($projects, function($p) use ($from_project) {
+                        return $p !== $from_project;
+                    });
+                    // Add to destination project
+                    if (!in_array($to_project, $projects)) {
+                        $projects[] = $to_project;
+                    }
+                    update_post_meta($attachment->ID, 'fastmedia_projects', array_values($projects));
+                    $moved_count++;
+                    
+                    // Log activity
+                    $activity_log = get_post_meta($attachment->ID, 'fastmedia_activity_log', true) ?: array();
+                    $user_info = get_userdata($user_id);
+                    $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' moved from project: ' . $from_project . ' to: ' . $to_project;
+                    update_post_meta($attachment->ID, 'fastmedia_activity_log', array_slice($activity_log, -50));
+                }
+            }
+            
+            echo '<div style="background:#e8f5e9;color:#2e7d32;padding:15px;margin:20px 0;border-radius:5px;">✅ Moved ' . $moved_count . ' assets from "' . esc_html($from_project) . '" to "' . esc_html($to_project) . '"</div>';
+        }
+    }
+    
+    // Handle Copy Assets
+    if (!empty($_POST['fm_pd_copy_from']) && !empty($_POST['fm_pd_copy_to'])) {
+        $from_project = sanitize_text_field($_POST['fm_pd_copy_from']);
+        $to_project = sanitize_text_field($_POST['fm_pd_copy_to']);
+        
+        // Handle new project creation
+        if ($to_project === '__new__' && !empty($_POST['fm_pd_new_copy_project'])) {
+            $to_project = sanitize_text_field($_POST['fm_pd_new_copy_project']);
+            if (!in_array($to_project, $user_projects)) {
+                $user_projects[] = $to_project;
+                update_user_meta($user_id, 'fastmedia_user_projects', $user_projects);
+            }
+        }
+        
+        if ($from_project !== $to_project && $to_project !== '__new__') {
+            // Get all attachments in source project
+            $args = array(
+                'post_type' => 'attachment',
+                'post_status' => 'inherit',
+                'author' => $user_id,
+                'meta_query' => array(
+                    array(
+                        'key' => 'fastmedia_projects',
+                        'value' => serialize($from_project),
+                        'compare' => 'LIKE'
+                    )
+                ),
+                'posts_per_page' => -1
+            );
+            $attachments = get_posts($args);
+            
+            $copied_count = 0;
+            foreach ($attachments as $attachment) {
+                $projects = get_post_meta($attachment->ID, 'fastmedia_projects', true);
+                if (is_array($projects)) {
+                    // Add to destination project (keep in source too)
+                    if (!in_array($to_project, $projects)) {
+                        $projects[] = $to_project;
+                        update_post_meta($attachment->ID, 'fastmedia_projects', $projects);
+                        $copied_count++;
+                        
+                        // Log activity
+                        $activity_log = get_post_meta($attachment->ID, 'fastmedia_activity_log', true) ?: array();
+                        $user_info = get_userdata($user_id);
+                        $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' copied to project: ' . $to_project;
+                        update_post_meta($attachment->ID, 'fastmedia_activity_log', array_slice($activity_log, -50));
+                    }
+                }
+            }
+            
+            echo '<div style="background:#e8f5e9;color:#2e7d32;padding:15px;margin:20px 0;border-radius:5px;">✅ Copied ' . $copied_count . ' assets to "' . esc_html($to_project) . '"</div>';
+        }
+    }
 
     ob_start();
+    
+    // Add AJAX handler for activity log
+    add_action('wp_ajax_fastmedia_get_project_activity', function() {
+        if (!wp_verify_nonce($_POST['nonce'], 'fm_project_activity')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        $project = sanitize_text_field($_POST['project']);
+        $user_id = get_current_user_id();
+        
+        // Get all attachments in this project
+        $args = array(
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'author' => $user_id,
+            'meta_query' => array(
+                array(
+                    'key' => 'fastmedia_projects',
+                    'value' => serialize($project),
+                    'compare' => 'LIKE'
+                )
+            ),
+            'posts_per_page' => -1
+        );
+        $attachments = get_posts($args);
+        
+        $all_activities = array();
+        
+        // Collect activity logs from all attachments
+        foreach ($attachments as $attachment) {
+            $activity_log = get_post_meta($attachment->ID, 'fastmedia_activity_log', true);
+            if (is_array($activity_log)) {
+                foreach ($activity_log as $activity) {
+                    // Add asset reference to each activity
+                    $all_activities[] = $activity . ' (Asset #' . $attachment->ID . ')';
+                }
+            }
+        }
+        
+        // Sort by date (newest first)
+        rsort($all_activities);
+        
+        // Limit to last 50 activities
+        $all_activities = array_slice($all_activities, 0, 50);
+        
+        wp_send_json_success(array('activities' => $all_activities));
+    });
     ?>
     
     <!-- Completely isolated CSS with unique prefix -->
@@ -801,6 +953,12 @@ add_shortcode('fastmedia_project_dashboard', function () {
                                 <button class="fm-pd-dropdown-item" onclick="navigator.clipboard.writeText('<?php echo site_url('/project-view/?project=' . urlencode($project)); ?>'); alert('Link copied!')">
                                     📤 Share Link
                                 </button>
+                                <button class="fm-pd-dropdown-item" onclick="fmPdMoveAssets('<?php echo esc_attr($project); ?>')">
+                                    ↔️ Move Assets
+                                </button>
+                                <button class="fm-pd-dropdown-item" onclick="fmPdCopyAssets('<?php echo esc_attr($project); ?>')">
+                                    📋 Copy Assets
+                                </button>
                                 <button class="fm-pd-dropdown-item" onclick="fmPdEditNote('<?php echo esc_attr($project); ?>')">
                                     📝 Edit Note
                                 </button>
@@ -919,21 +1077,28 @@ add_shortcode('fastmedia_project_dashboard', function () {
                                 <a href="<?php echo site_url('/project-view/?project=' . urlencode($project) . '&view=contact'); ?>" class="fm-pd-btn">
                                     🎛️ Contact Sheet
                                 </a>
-                                <div class="fm-pd-project-rating" data-project="<?php echo esc_attr($project); ?>">
-                                    <button type="button" 
-                                            class="fm-pd-rating-btn fm-pd-rating-like <?php echo $user_liked_project ? 'active' : ''; ?>" 
-                                            onclick="fmPdRateProject('<?php echo esc_attr($project); ?>', 'like')"
-                                            title="Like all assets in this project">
-                                        👍 <span class="fm-pd-rating-count"><?php echo $project_data['likes']; ?></span>
-                                    </button>
-                                    <button type="button" 
-                                            class="fm-pd-rating-btn fm-pd-rating-dislike <?php echo $user_disliked_project ? 'active' : ''; ?>" 
-                                            onclick="fmPdRateProject('<?php echo esc_attr($project); ?>', 'dislike')"
-                                            title="Dislike all assets in this project">
-                                        👎 <span class="fm-pd-rating-count"><?php echo $project_data['dislikes']; ?></span>
-                                    </button>
-                                </div>
                             </div>
+                            
+                            <?php 
+                            // Show rating UI for the first asset in the project as a sample
+                            if (!empty($project_data['attachments'][0])): 
+                                $first_asset = $project_data['attachments'][0];
+                            ?>
+                            <div class="fm-pd-project-sample-rating">
+                                <small style="color: #666; display: block; margin: 10px 0 5px 0;">Rate sample asset:</small>
+                                <?php echo fastmedia_rating_ui($first_asset->ID); ?>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <?php
+                            // Get project note
+                            $project_note = get_user_meta($user_id, 'fastmedia_project_note_' . $project, true);
+                            if ($project_note):
+                            ?>
+                            <div class="fm-pd-project-note">
+                                <small style="color: #666;">Note: <?php echo esc_html($project_note); ?></small>
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -1010,6 +1175,43 @@ add_shortcode('fastmedia_project_dashboard', function () {
         </div>
     </div>
     
+    <div id="fm-pd-move-modal" class="fm-pd-modal">
+        <h3>Move Assets to Another Project</h3>
+        <form method="post" id="fm-pd-move-form">
+            <input type="hidden" name="fm_pd_move_from" id="fm-pd-move-from">
+            <label style="display: block; margin-bottom: 10px;">Move all assets from this project to:</label>
+            <select name="fm_pd_move_to" id="fm-pd-move-to" style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; font-size: 14px;">
+                <option value="">Select destination project...</option>
+                <?php foreach ($active_projects as $proj): ?>
+                    <option value="<?php echo esc_attr($proj); ?>"><?php echo esc_html($proj); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <div class="fm-pd-modal-actions">
+                <button type="submit" class="fm-pd-modal-btn fm-pd-modal-btn-primary">Move Assets</button>
+                <button type="button" class="fm-pd-modal-btn fm-pd-modal-btn-cancel" onclick="fmPdCloseModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+    
+    <div id="fm-pd-copy-modal" class="fm-pd-modal">
+        <h3>Copy Assets to Another Project</h3>
+        <form method="post" id="fm-pd-copy-form">
+            <input type="hidden" name="fm_pd_copy_from" id="fm-pd-copy-from">
+            <label style="display: block; margin-bottom: 10px;">Copy all assets from this project to:</label>
+            <select name="fm_pd_copy_to" id="fm-pd-copy-to" style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; font-size: 14px;">
+                <option value="">Select destination project...</option>
+                <?php foreach ($active_projects as $proj): ?>
+                    <option value="<?php echo esc_attr($proj); ?>"><?php echo esc_html($proj); ?></option>
+                <?php endforeach; ?>
+                <option value="__new__">+ Create New Project</option>
+            </select>
+            <div class="fm-pd-modal-actions">
+                <button type="submit" class="fm-pd-modal-btn fm-pd-modal-btn-primary">Copy Assets</button>
+                <button type="button" class="fm-pd-modal-btn fm-pd-modal-btn-cancel" onclick="fmPdCloseModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+    
     <iframe name="fm_pd_export_frame" style="display:none;"></iframe>
 
     <script>
@@ -1060,6 +1262,32 @@ add_shortcode('fastmedia_project_dashboard', function () {
             document.getElementById('fm-pd-rename-to').select();
         };
         
+        // Move assets
+        window.fmPdMoveAssets = function(projectName) {
+            document.getElementById('fm-pd-move-from').value = projectName;
+            document.getElementById('fm-pd-move-to').value = '';
+            // Remove current project from options
+            const options = document.querySelectorAll('#fm-pd-move-to option');
+            options.forEach(opt => {
+                opt.style.display = opt.value === projectName ? 'none' : '';
+            });
+            document.getElementById('fm-pd-move-modal').style.display = 'block';
+            document.querySelector('.fm-pd-modal-overlay').style.display = 'block';
+        };
+        
+        // Copy assets
+        window.fmPdCopyAssets = function(projectName) {
+            document.getElementById('fm-pd-copy-from').value = projectName;
+            document.getElementById('fm-pd-copy-to').value = '';
+            // Remove current project from options
+            const options = document.querySelectorAll('#fm-pd-copy-to option');
+            options.forEach(opt => {
+                opt.style.display = opt.value === projectName ? 'none' : '';
+            });
+            document.getElementById('fm-pd-copy-modal').style.display = 'block';
+            document.querySelector('.fm-pd-modal-overlay').style.display = 'block';
+        };
+        
         // Edit project note
         window.fmPdEditNote = function(projectName) {
             document.getElementById('fm-pd-note-project').value = projectName;
@@ -1081,17 +1309,36 @@ add_shortcode('fastmedia_project_dashboard', function () {
             document.getElementById('fm-pd-activity-modal').style.display = 'block';
             document.querySelector('.fm-pd-modal-overlay').style.display = 'block';
             
-            // In a real implementation, you would fetch activity via AJAX
-            // For now, showing a placeholder
-            document.getElementById('fm-pd-activity-content').innerHTML = 
-                '<p>Activity tracking for project: <strong>' + projectName + '</strong></p>' +
-                '<p style="color: #666;">Activity logging will show:</p>' +
-                '<ul style="color: #666;">' +
-                '<li>When assets were added/removed</li>' +
-                '<li>Rating changes</li>' +
-                '<li>Project renames</li>' +
-                '<li>Note updates</li>' +
-                '</ul>';
+            // Show loading
+            document.getElementById('fm-pd-activity-content').innerHTML = '<p>Loading activity...</p>';
+            
+            // Fetch activity via AJAX
+            const formData = new FormData();
+            formData.append('action', 'fastmedia_get_project_activity');
+            formData.append('project', projectName);
+            formData.append('nonce', '<?php echo wp_create_nonce("fm_project_activity"); ?>');
+            
+            fetch('<?php echo admin_url("admin-ajax.php"); ?>', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.activities.length > 0) {
+                    let html = '<div style="font-size: 13px; line-height: 1.6;">';
+                    data.data.activities.forEach(activity => {
+                        html += '<div style="padding: 8px 0; border-bottom: 1px solid #ddd;">' + activity + '</div>';
+                    });
+                    html += '</div>';
+                    document.getElementById('fm-pd-activity-content').innerHTML = html;
+                } else {
+                    document.getElementById('fm-pd-activity-content').innerHTML = '<p style="color: #666;">No activity recorded yet.</p>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('fm-pd-activity-content').innerHTML = '<p style="color: #f44336;">Error loading activity.</p>';
+            });
         };
         
         // Archive project
@@ -1144,6 +1391,44 @@ add_shortcode('fastmedia_project_dashboard', function () {
                 noteForm.addEventListener('submit', function(e) {
                     e.preventDefault();
                     this.submit();
+                });
+            }
+            
+            // Move form
+            const moveForm = document.getElementById('fm-pd-move-form');
+            if (moveForm) {
+                moveForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    if (document.getElementById('fm-pd-move-to').value) {
+                        this.submit();
+                    } else {
+                        alert('Please select a destination project');
+                    }
+                });
+            }
+            
+            // Copy form
+            const copyForm = document.getElementById('fm-pd-copy-form');
+            if (copyForm) {
+                copyForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const copyTo = document.getElementById('fm-pd-copy-to').value;
+                    if (copyTo === '__new__') {
+                        const newProject = prompt('Enter name for new project:');
+                        if (newProject && newProject.trim()) {
+                            // Add hidden field for new project name
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'fm_pd_new_copy_project';
+                            input.value = newProject.trim();
+                            this.appendChild(input);
+                            this.submit();
+                        }
+                    } else if (copyTo) {
+                        this.submit();
+                    } else {
+                        alert('Please select a destination project');
+                    }
                 });
             }
         });
