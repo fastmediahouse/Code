@@ -84,6 +84,14 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         font-size: 12px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
+    /* Fix rating button size */
+    .fm-rating-overlay button {
+        font-size: 16px !important;
+        line-height: 1 !important;
+        padding: 2px 6px !important;
+        min-width: auto !important;
+        height: auto !important;
+    }
     /* Fix viewing header - make it smaller and cleaner */
     .fm-collapsible-header {
         background: #f8f9fa;
@@ -143,9 +151,11 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         background: #fff;
         border: 1px solid #ccc;
         padding: 10px;
-        z-index: 10;
+        z-index: 100;
         border-radius: 6px;
         min-width: 250px;
+        max-height: 400px;
+        overflow-y: auto;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     .fm-dropdown-labels:hover .fm-dropdown-content { display: block; }
@@ -168,9 +178,16 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         overflow: hidden;
         transition: all 0.3s ease;
     }
+    /* Keep the collapse/expand mechanism working */
     .fastmedia-toolbar.collapsed {
         max-height: 0;
         margin-top: 0;
+        overflow: hidden;
+    }
+    
+    .fastmedia-toolbar:not(.collapsed) {
+        max-height: 500px; /* Enough for content */
+        overflow: visible;
     }
     .fm-toolbar-toggle {
         font-size: 12px;
@@ -232,6 +249,13 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         display: inline-flex;
         align-items: center;
         justify-content: center;
+    }
+    /* Fix project toggle button specifically */
+    .fm-project-toggle button {
+        font-size: 12px !important;
+        width: 20px !important;
+        height: 20px !important;
+        padding: 2px !important;
     }
     /* Fix suggest for brand button size */
     .fm-toolbar-row button[onclick*="suggestForBrand"] {
@@ -528,6 +552,9 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
     </div>
 
     <script>
+    // Add nonce to page for AJAX calls
+    window.fastmedia_nonce = '<?php echo wp_create_nonce("fastmedia_project_nonce"); ?>';
+    
     function copyShareLink(assetId) {
         const url = '<?php echo site_url('/asset-detail/?id='); ?>' + assetId;
         navigator.clipboard.writeText(url).then(() => {
@@ -597,13 +624,23 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
             return;
         }
         
-        // Use exact same method as individual project toggle
+        // Make the same AJAX calls as the toggle button
         selected.forEach(cb => {
             const tile = cb.closest('.fastmedia-tile');
             const assetId = tile.dataset.assetId;
             
-            // This is the exact same call the individual toggle makes
-            toggle_project(projectName.trim(), assetId, true);
+            const formData = new FormData();
+            formData.append('action', 'fastmedia_toggle_project');
+            formData.append('attachment_id', assetId);
+            formData.append('project', projectName.trim());
+            formData.append('toggle_action', 'add');
+            formData.append('nonce', window.fastmedia_nonce);
+            
+            fetch('/wp-admin/admin-ajax.php', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin'
+            });
         });
         
         alert('Added ' + selected.length + ' assets to project: ' + projectName.trim());
@@ -708,7 +745,26 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
     }
     
     function suggestForBrand(assetId, button) {
-        window.location.href = '/asset-detail/?id=' + assetId + '&suggest_brand=1';
+        // Do the action here instead of redirecting
+        button.disabled = true;
+        button.textContent = 'Suggesting...';
+        
+        // Mark as suggested
+        const labels = button.closest('.fm-toolbar-row').querySelector('.fm-dropdown-labels');
+        if (labels) {
+            const brCheckbox = labels.querySelector('input[value="BR"]');
+            if (brCheckbox) {
+                brCheckbox.checked = true;
+            }
+        }
+        
+        // Update button to show pending status
+        setTimeout(() => {
+            const pendingSpan = document.createElement('span');
+            pendingSpan.style.cssText = 'padding:6px 10px;background:#999;color:white;border-radius:4px;';
+            pendingSpan.textContent = '⏳ Pending Review';
+            button.parentNode.replaceChild(pendingSpan, button);
+        }, 500);
     }
     </script>
     <?php
@@ -824,12 +880,54 @@ add_shortcode('fastmedia_purchased_assets', function () {
 add_shortcode('fastmedia_assets_my_assets', function () {
     if (!is_user_logged_in()) return '<p>Please <a href="/signin/">sign in</a>.</p>';
     
-    $output = '';
-    $output .= '<h3 style="margin-top: 0;">Uploaded Assets</h3>';
-    $output .= do_shortcode('[fastmedia_uploaded]');
-    $output .= '<hr style="margin:40px 0;">';
-    $output .= '<h3>Licensed Assets</h3>';
-    $output .= do_shortcode('[fastmedia_purchased_assets]');
+    $user_id = get_current_user_id();
     
-    return $output;
+    // Get all uploaded assets
+    $uploaded = get_posts([
+        'post_type'      => 'attachment',
+        'post_status'    => 'inherit',
+        'posts_per_page' => 50,
+        'author'         => $user_id,
+        'post_mime_type' => 'image',
+        'orderby'        => isset($_GET['sort']) ? 'title' : 'date',
+        'order'          => 'DESC',
+        'meta_query'     => [[
+            'key'     => 'fastmedia_upload_status',
+            'compare' => 'NOT EXISTS'
+        ]]
+    ]);
+    
+    // Get all purchased assets
+    $args = [
+        'post_type'      => 'attachment',
+        'post_status'    => 'inherit',
+        'posts_per_page' => 50,
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+        'meta_query'     => [
+            [
+                'key'     => 'fastmedia_licensed',
+                'value'   => 'yes',
+                'compare' => '='
+            ],
+            [
+                'key'     => 'fastmedia_buyer_id',
+                'value'   => $user_id,
+                'compare' => '='
+            ]
+        ]
+    ];
+    
+    $query = new WP_Query($args);
+    $purchased = [];
+    
+    foreach ($query->posts as $post) {
+        $purchased[] = $post;
+    }
+    
+    // Combine all assets
+    $all_assets = array_merge($uploaded, $purchased);
+    
+    // Render as one grid with ALL badge type
+    return render_fastmedia_grid($all_assets, 'ALL');
 });
