@@ -1,0 +1,17 @@
+// ✅ Append icon to "Membership Plans" menu item
+add_action('wp_footer', function() {
+    if (!is_account_page()) return;
+    ?>
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const link = document.querySelector("a[href$='membership-plans']");
+        if (link) {
+            const icon = document.createElement("i");
+            icon.className = "fas fa-crown";
+            icon.style.marginRight = "6px";
+            link.prepend(icon);
+        }
+    });
+    </script>
+    <?php
+});
