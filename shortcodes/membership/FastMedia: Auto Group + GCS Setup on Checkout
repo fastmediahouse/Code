@@ -1,0 +1,89 @@
+/*
+Plugin Name: FastMedia: Auto Group + GCS Setup on Checkout
+Description: Hooks into PMPro checkout to create BuddyBoss Group, fm_team CPT, and assign GCS path + role. Only runs on HUB plans.
+*/
+
+add_action('pmpro_after_checkout', 'fm_auto_group_and_gcs_path_setup', 10, 2);
+function fm_auto_group_and_gcs_path_setup($user_id, $order) {
+    if (!$user_id || !$order || !function_exists('groups_create_group')) return;
+
+    $level = pmpro_getMembershipLevelForUser($user_id);
+    if (!$level) return;
+
+    // 🎯 Plan config by level ID
+    $plan_config = [
+        4 => ['key' => 'hub_single', 'tier' => 'HUB5', 'role' => 'hub_user', 'team_size' => 1, 'storage_limit' => 5000],
+        5 => ['key' => 'hub_team_5', 'tier' => 'HUB5', 'role' => 'team_admin', 'team_size' => 5, 'storage_limit' => 10000],
+        6 => ['key' => 'hub_team_10', 'tier' => 'HUB10', 'role' => 'team_admin', 'team_size' => 10, 'storage_limit' => 20000],
+        7 => ['key' => 'hub_team_25', 'tier' => 'HUB25', 'role' => 'team_admin', 'team_size' => 25, 'storage_limit' => 40000]
+    ];
+
+    $config = $plan_config[$level->id] ?? null;
+    if (!$config) return;
+
+    $user = get_userdata($user_id);
+    $username = $user->user_login;
+    $company_name = get_user_meta($user_id, 'pmpro_bcompany', true);
+
+    if (!$company_name) return; // Must have company name
+    $team_slug = sanitize_title($company_name);
+
+    // Prevent duplicate setup
+    if (get_page_by_path($team_slug, OBJECT, 'fm_team')) return;
+
+    // 👥 Create BuddyBoss Group
+    $group_id = groups_create_group([
+        'name'        => $company_name,
+        'slug'        => 'team-' . $team_slug,
+        'description' => 'Private team group for ' . $company_name,
+        'status'      => 'private',
+        'creator_id'  => $user_id
+    ]);
+    if (!$group_id) return;
+    groups_update_groupmeta($group_id, 'team_slug', $team_slug);
+    groups_join_group($group_id, $user_id);
+    groups_promote_member($user_id, $group_id, 'admin');
+
+    // 📦 Create fm_team CPT
+    $post_id = wp_insert_post([
+        'post_title'  => $company_name,
+        'post_name'   => $team_slug,
+        'post_type'   => 'fm_team',
+        'post_status' => 'publish'
+    ]);
+    if (!$post_id) return;
+
+    update_post_meta($post_id, 'team_id', $team_slug);
+    update_post_meta($post_id, 'group_id', $group_id);
+    update_post_meta($post_id, 'team_admin_id', $user_id);
+    update_post_meta($post_id, 'max_seats', $config['team_size']);
+    update_post_meta($post_id, 'storage_limit_mb', $config['storage_limit']);
+    update_post_meta($post_id, 'storage_used_mb', 0);
+
+    // 🗂 Set GCS path + role
+    $gcs_path = "{$config['tier']}/{$company_name}/{$username}/";
+    update_user_meta($user_id, 'gcs_path', $gcs_path);
+    update_user_meta($user_id, 'team_id', $team_slug);
+    $user->set_role($config['role']);
+
+    // 🔔 Optional: Hook or logging
+    do_action('fm_after_hub_setup', $user_id, $team_slug, $group_id, $gcs_path);
+    error_log("✅ FastMedia: Group + GCS setup complete for $company_name (user: $user_id)");
+}
+
+// ✅ Custom PMPro Checkout Field – Company Name (Required)
+add_filter('pmpro_checkout_boxes', function() {
+    echo '<hr><h3>Company Info</h3>
+        <table>
+            <tr>
+                <td><label for="company">Company Name *</label></td>
+                <td><input name="bcompany" id="bcompany" type="text" class="input" size="30" required></td>
+            </tr>
+        </table>';
+});
+
+add_action('pmpro_after_checkout', function($user_id) {
+    if (!empty($_REQUEST['bcompany'])) {
+        update_user_meta($user_id, 'pmpro_bcompany', sanitize_text_field($_REQUEST['bcompany']));
+    }
+});
