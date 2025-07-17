@@ -1,0 +1,30 @@
+// ✅ Shortcode: [fm_user_storage_status]
+add_shortcode('fm_user_storage_status', function () {
+    if (!is_user_logged_in()) return '<p>Please log in to view your storage status.</p>';
+
+    $user_id = get_current_user_id();
+    $gcs_path = get_user_meta($user_id, 'gcs_path', true);
+    $used_mb = get_user_meta($user_id, 'storage_used_mb', true);
+    $limit_mb = get_user_meta($user_id, 'storage_limit_mb', true);
+
+    if (!$gcs_path || !$limit_mb) {
+        return '<p>Storage details are not available for your account.</p>';
+    }
+
+    $used_gb = round($used_mb / 1024, 2);
+    $limit_gb = round($limit_mb / 1024, 2);
+    $percent = $limit_mb > 0 ? round(($used_mb / $limit_mb) * 100) : 0;
+    $percent = min($percent, 100);
+
+    ob_start();
+    ?>
+    <div class="fm-storage-status" style="max-width: 400px; font-family: Arial, sans-serif;">
+        <p>📂 <strong>GCS Path:</strong> <?php echo esc_html($gcs_path); ?></p>
+        <p>💾 <strong>Used:</strong> <?php echo $used_gb; ?> GB of <?php echo $limit_gb; ?> GB (<?php echo $percent; ?>%)</p>
+        <div style="background: #eee; height: 12px; border-radius: 8px; overflow: hidden; margin-top: 6px;">
+            <div style="height: 100%; width: <?php echo $percent; ?>%; background: <?php echo $percent < 90 ? '#4caf50' : '#e74c3c'; ?>;"></div>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+});
