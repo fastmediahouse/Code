@@ -543,7 +543,7 @@ add_shortcode('fastmedia_project_view', function () {
         display: none !important;
     }
     
-    /* LIST VIEW - Properly stacked */
+    /* LIST VIEW - Fixed height with proper grids */
     .fm-pv-grid.list-view {
         display: block !important;
         grid: none;
@@ -551,10 +551,16 @@ add_shortcode('fastmedia_project_view', function () {
     
     .fm-pv-grid.list-view .fm-pv-tile {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         gap: 12px;
-        margin-bottom: 8px;
+        margin-bottom: 2px;
         padding: 10px;
+        height: 80px;
+        border-bottom: 2px solid #e0e0e0;
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-tile:last-child {
+        border-bottom: none;
     }
     
     .fm-pv-grid.list-view .fm-pv-checkbox {
@@ -562,7 +568,8 @@ add_shortcode('fastmedia_project_view', function () {
         top: 0;
         left: 0;
         opacity: 1;
-        margin-top: 15px;
+        margin: 0;
+        flex-shrink: 0;
     }
     
     .fm-pv-grid.list-view .fm-pv-image-wrapper {
@@ -578,7 +585,10 @@ add_shortcode('fastmedia_project_view', function () {
     }
     
     .fm-pv-grid.list-view .fm-pv-tile-details {
-        flex: 0 0 160px;
+        flex: 0 0 200px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
     
     .fm-pv-grid.list-view .fm-pv-tile-details strong {
@@ -599,62 +609,173 @@ add_shortcode('fastmedia_project_view', function () {
         flex: 1;
         display: block !important;
         opacity: 1 !important;
+        margin: 0;
     }
     
     .fm-pv-grid.list-view .fm-pv-toolbar-content {
         display: flex;
-        gap: 15px;
+        gap: 0;
+        height: 80px;
+        align-items: stretch;
+        padding: 0;
     }
     
-    /* List view stacked sections */
-    .fm-pv-grid.list-view .fm-pv-stack-labels {
-        flex: 0 0 140px;
-    }
-    
-    .fm-pv-grid.list-view .fm-pv-stack-labels .fm-pv-toolbar-row {
+    /* List view: Rating stack with vertical thumbs */
+    .fm-pv-grid.list-view .fm-pv-stack-rating {
+        display: flex;
         flex-direction: column;
-        align-items: flex-start;
-        margin: 0;
+        gap: 2px;
+        justify-content: center;
+        padding: 0 15px;
+        border-right: 1px solid #666;
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-stack-rating .fm-rating-container {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-stack-rating button {
+        font-size: 14px !important;
+        padding: 2px 6px !important;
+        border: 1px solid #ccc !important;
+        background: white !important;
+        border-radius: 4px !important;
+        cursor: pointer !important;
+        margin: 0 !important;
+        width: 40px !important;
+        height: 26px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-stack-rating button:hover {
+        background: #f0f0f0 !important;
+    }
+    
+    /* List view: Labels stack with 2x2 grid */
+    .fm-pv-grid.list-view .fm-pv-stack-labels {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        justify-content: center;
+        min-width: 120px;
+        padding: 0 15px;
+        border-right: 1px solid #666;
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-labels-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
         gap: 2px;
     }
     
     .fm-pv-grid.list-view .fm-pv-stack-labels .fm-pv-label {
-        font-size: 9px;
-        padding: 2px 4px;
-        margin-bottom: 2px;
+        font-size: 9px !important;
+        padding: 2px 4px !important;
+        margin: 0 !important;
+        text-align: center;
     }
     
-    .fm-pv-grid.list-view .fm-pv-stack-labels button {
+    .fm-pv-grid.list-view .fm-pv-labels-btn {
         font-size: 11px !important;
         padding: 3px 6px !important;
-        margin-top: 4px;
+        border: 1px solid #ccc;
+        background: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        color: #333;
     }
     
+    .fm-pv-grid.list-view .fm-pv-suggest-btn {
+        font-size: 10px !important;
+        padding: 2px 6px !important;
+        background: #000;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    /* List view: Project stack */
     .fm-pv-grid.list-view .fm-pv-stack-project {
-        flex: 0 0 120px;
+        display: flex;
+        align-items: center;
+        min-width: 140px;
+        padding: 0 15px;
+        border-right: 1px solid #666;
     }
     
-    .fm-pv-grid.list-view .fm-pv-stack-project .fm-pv-toolbar-row {
-        flex-direction: column;
-        align-items: flex-start;
-        margin: 0;
-        gap: 4px;
+    .fm-pv-grid.list-view .fm-pv-stack-project .fm-project-toggle {
+        width: 100%;
     }
     
-    .fm-pv-grid.list-view .fm-pv-stack-actions {
-        flex: 0 0 auto;
-    }
-    
-    .fm-pv-grid.list-view .fm-pv-stack-actions .fm-pv-toolbar-buttons {
-        flex-direction: column;
-        gap: 2px;
-    }
-    
-    .fm-pv-grid.list-view .fm-pv-stack-actions button,
-    .fm-pv-grid.list-view .fm-pv-stack-actions a {
+    .fm-pv-grid.list-view .fm-pv-stack-project select {
+        width: 100%;
         font-size: 11px !important;
-        padding: 3px 8px !important;
-        min-width: 100px;
+        padding: 4px 6px !important;
+    }
+    
+    /* List view: Actions stack with 2x2 grid */
+    .fm-pv-grid.list-view .fm-pv-stack-actions {
+        display: flex;
+        align-items: center;
+        min-width: 140px;
+        padding: 0 15px;
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2px;
+        width: 100%;
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-actions-grid button,
+    .fm-pv-grid.list-view .fm-pv-actions-grid a {
+        font-size: 11px !important;
+        padding: 4px 6px !important;
+        border: 1px solid #ccc;
+        background: white;
+        border-radius: 4px;
+        text-align: center;
+        cursor: pointer;
+        text-decoration: none;
+        color: #333;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 26px;
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-actions-grid button:hover,
+    /* List view: Dropdown labels in list view */
+    .fm-pv-grid.list-view .fm-pv-dropdown-labels {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-dropdown-labels .fm-pv-dropdown-content {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: #fff;
+        border: 1px solid #ccc;
+        padding: 10px;
+        z-index: 100;
+        border-radius: 6px;
+        min-width: 250px;
+        max-height: 400px;
+        overflow-y: auto;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .fm-pv-grid.list-view .fm-pv-dropdown-labels:hover .fm-pv-dropdown-content {
+        display: block;
     }
     
     /* Contact Sheet */
@@ -773,7 +894,7 @@ add_shortcode('fastmedia_project_view', function () {
                                class="fm-pv-btn fm-pv-btn-primary">
                                 🎛️ Contact Sheet View
                             </a>
-                            <a href="<?php echo site_url('/my-projects/'); ?>" class="fm-pv-back-btn">
+                            <a href="https://fastmediahouse.com/projects/" class="fm-pv-back-btn">
                                 ← Back to Projects
                             </a>
                         </div>
@@ -788,6 +909,97 @@ add_shortcode('fastmedia_project_view', function () {
                                 💾 Save Note
                             </button>
                         </form>
+                    </div>
+                </div>
+                
+                <?php
+                // Calculate project stats for ALL assets in project
+                $all_project_assets = get_posts(array(
+                    'post_type' => 'attachment',
+                    'post_status' => 'inherit',
+                    'author' => $user_id,
+                    'meta_query' => array(
+                        array(
+                            'key' => 'fastmedia_projects',
+                            'value' => serialize($project),
+                            'compare' => 'LIKE'
+                        )
+                    ),
+                    'posts_per_page' => -1
+                ));
+                
+                $project_likes = 0;
+                $project_dislikes = 0;
+                
+                foreach ($all_project_assets as $asset) {
+                    $likes = get_post_meta($asset->ID, '_image_likes', true);
+                    $dislikes = get_post_meta($asset->ID, '_image_dislikes', true);
+                    $project_likes += is_array($likes) ? count($likes) : 0;
+                    $project_dislikes += is_array($dislikes) ? count($dislikes) : 0;
+                }
+                
+                $net_rating = $project_likes - $project_dislikes;
+                ?>
+                
+                <!-- Project Summary Stats -->
+                <style>
+                .fm-pv-summary-stats {
+                    display: flex;
+                    gap: 20px;
+                    margin-bottom: 20px;
+                    padding: 15px;
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    border: 1px solid #e0e0e0;
+                }
+                
+                .fm-pv-summary-stat {
+                    text-align: center;
+                    flex: 1;
+                }
+                
+                .fm-pv-summary-value {
+                    display: block;
+                    font-size: 24px;
+                    font-weight: 700;
+                    color: #333;
+                    margin-bottom: 4px;
+                }
+                
+                .fm-pv-summary-label {
+                    font-size: 13px;
+                    color: #666;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                
+                .fm-pv-rating-positive {
+                    color: #00a65a;
+                }
+                
+                .fm-pv-rating-negative {
+                    color: #f44336;
+                }
+                </style>
+                
+                <div class="fm-pv-summary-stats">
+                    <div class="fm-pv-summary-stat">
+                        <span class="fm-pv-summary-value"><?php echo $total_attachments; ?></span>
+                        <span class="fm-pv-summary-label">Total Assets</span>
+                    </div>
+                    <div class="fm-pv-summary-stat">
+                        <span class="fm-pv-summary-value"><?php echo $project_likes; ?></span>
+                        <span class="fm-pv-summary-label">Total Likes</span>
+                    </div>
+                    <div class="fm-pv-summary-stat">
+                        <span class="fm-pv-summary-value"><?php echo $project_dislikes; ?></span>
+                        <span class="fm-pv-summary-label">Total Dislikes</span>
+                    </div>
+                    <div class="fm-pv-summary-stat">
+                        <span class="fm-pv-summary-value <?php echo $net_rating > 0 ? 'fm-pv-rating-positive' : ($net_rating < 0 ? 'fm-pv-rating-negative' : ''); ?>">
+                            <?php echo $net_rating > 0 ? '+' : ''; ?><?php echo $net_rating; ?>
+                        </span>
+                        <span class="fm-pv-summary-label">Net Rating</span>
                     </div>
                 </div>
                 
@@ -808,19 +1020,20 @@ add_shortcode('fastmedia_project_view', function () {
                     </div>
                 </div>
                 
-                <!-- SINGLE Bulk actions bar -->
+                <!-- SINGLE Bulk actions bar with tooltips -->
                 <div class="fm-pv-bulkbar" id="bulk-actions">
                     <span><strong id="selected-count">0</strong> selected</span>
-                    <button onclick="selectAll()">Select All</button>
-                    <button onclick="deselectAll()">Deselect All</button>
-                    <button onclick="bulkDownload()">📥 Download</button>
+                    <button onclick="selectAll()" title="Select all assets in this project">Select All</button>
+                    <button onclick="deselectAll()" title="Deselect all selected assets">Deselect All</button>
+                    <button onclick="bulkDownload()" title="Download all selected assets in full resolution">📥 Download</button>
                     
                     <button type="button" id="bulk-toggle-btn" onclick="bulkAddToProject()" 
+                            title="Add/remove selected assets to another project"
                             style="background: #f5f5f5; color: #333; padding: 6px 10px; border-radius: 4px; font-size: 16px; cursor: pointer; border: 1px solid #ddd;">
                         <span>➕</span>
                     </button>
                     
-                    <select id="bulk-project-picker" style="font-size: 13px; padding: 6px 10px; border-radius: 4px;">
+                    <select id="bulk-project-picker" title="Select project to add assets to" style="font-size: 13px; padding: 6px 10px; border-radius: 4px;">
                         <?php foreach ($user_projects as $proj): ?>
                             <option value="<?php echo esc_attr($proj); ?>" <?php selected($proj, $project); ?>>
                                 <?php echo esc_html($proj); ?>
@@ -829,7 +1042,7 @@ add_shortcode('fastmedia_project_view', function () {
                     </select>
                     
                     <!-- Copy to different project -->
-                    <select id="bulk-copy-to" onchange="bulkCopyToProject()" style="font-size: 13px; padding: 6px 10px; border-radius: 4px;">
+                    <select id="bulk-copy-to" onchange="bulkCopyToProject()" title="Copy selected assets to another project (keeps in current project too)" style="font-size: 13px; padding: 6px 10px; border-radius: 4px;">
                         <option value="">Copy selected to...</option>
                         <?php
                         $other_projects = array_filter($user_projects, function($p) use ($project) {
@@ -844,7 +1057,7 @@ add_shortcode('fastmedia_project_view', function () {
                     </select>
                     
                     <!-- Move to different project -->
-                    <select id="bulk-move-to" onchange="bulkMoveToProject()" style="font-size: 13px; padding: 6px 10px; border-radius: 4px;">
+                    <select id="bulk-move-to" onchange="bulkMoveToProject()" title="Move selected assets to another project (removes from current project)" style="font-size: 13px; padding: 6px 10px; border-radius: 4px;">
                         <option value="">Move selected to...</option>
                         <?php foreach ($other_projects as $other_project): ?>
                             <option value="<?php echo esc_attr($other_project); ?>">
@@ -853,7 +1066,7 @@ add_shortcode('fastmedia_project_view', function () {
                         <?php endforeach; ?>
                     </select>
                     
-                    <button onclick="bulkRemoveFromProject()">🗑️ Remove from Project</button>
+                    <button onclick="bulkRemoveFromProject()" title="Remove selected assets from this project">🗑️ Remove from Project</button>
                 </div>
                 
                 <div class="fm-pv-grid">
@@ -905,25 +1118,82 @@ add_shortcode('fastmedia_project_view', function () {
                                 <?php endif; ?>
                             </strong>
                             <small style="color: #666; display: block;"><?php echo $date; ?></small>
+                            <small style="color: #666;">File size: <?php echo $file_size_formatted; ?></small>
                         </div>
 
                         <div class="fm-pv-toolbar">
                             <div class="fm-pv-toolbar-content">
-                                <!-- Stack 1: Rating (thumbs up line 1, down line 2) -->
-                                <div class="fm-pv-stack-rating">
+                                <!-- List view layout -->
+                                <div class="fm-pv-stack-rating" style="display:none;">
                                     <?php if (function_exists('fastmedia_rating_ui')): ?>
                                         <?php echo fastmedia_rating_ui($id); ?>
                                     <?php endif; ?>
                                 </div>
                                 
-                                <!-- Stack 2: Labels (max 3 on line 1, rest on line 2, dropdown and suggest on line 1) -->
-                                <div class="fm-pv-stack-labels">
-                                    <div class="fm-pv-labels-line1">
+                                <div class="fm-pv-stack-labels" style="display:none;">
+                                    <div class="fm-pv-labels-grid">
                                         <?php 
                                         $label_count = 0;
                                         foreach ($labels as $code): 
-                                            if (isset($label_map[$code]) && $label_count < 3):
+                                            if (isset($label_map[$code]) && $label_count < 4):
                                                 $label_count++;
+                                        ?>
+                                            <span class="fm-pv-label fm-pv-label-<?php echo esc_attr($code); ?>" 
+                                                  title="<?php echo esc_attr($label_map[$code]); ?>">
+                                                <?php echo esc_html($code); ?>
+                                            </span>
+                                        <?php 
+                                            endif;
+                                        endforeach; ?>
+                                    </div>
+                                    
+                                    <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                        <div class="fm-pv-dropdown-labels">
+                                            <button type="button" class="fm-pv-labels-btn" onclick="event.stopPropagation();">Labels</button>
+                                            <div class="fm-pv-dropdown-content" onclick="event.stopPropagation();">
+                                                <?php foreach ($label_map as $code => $desc):
+                                                    $checked = in_array($code, $labels) ? 'checked' : '';
+                                                    $disabled = in_array($code, ['ST', 'UP']) ? 'disabled' : '';
+                                                ?>
+                                                    <label>
+                                                        <input type="checkbox" value="<?php echo esc_attr($code); ?>" <?php echo $checked; ?> <?php echo $disabled; ?>> 
+                                                        <strong><?php echo esc_html($code); ?></strong> - <?php echo esc_html($desc); ?>
+                                                    </label>
+                                                <?php endforeach; ?>
+                                                <button type="button" onclick="saveLabels(<?php echo $id; ?>, this)" style="margin-top:8px;width:100%;padding:6px;background:#0073aa;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;">Save</button>
+                                            </div>
+                                        </div>
+                                        
+                                        <?php if (!in_array('BR', $labels)): ?>
+                                            <button onclick="suggestForBrand(<?php echo $id; ?>, this)" 
+                                                    class="fm-pv-suggest-btn"
+                                                    title="Propose this asset for brand approval">Suggest</button>
+                                        <?php else: ?>
+                                            <span style="padding:2px 6px;background:#999;color:white;border-radius:4px;font-size:10px;">
+                                                <?php echo $is_approved ? '✅' : '⏳'; ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+
+                                <div class="fm-pv-stack-project" style="display:none;">
+                                    <?php echo fastmedia_project_toggle_ui($id); ?>
+                                </div>
+
+                                <div class="fm-pv-stack-actions" style="display:none;">
+                                    <div class="fm-pv-actions-grid">
+                                        <button title="Share" onclick="copyShareLink(<?php echo $id; ?>)">🔗 Share</button>
+                                        <button title="Download" onclick="downloadAsset(<?php echo $id; ?>)">⬇️ Download</button>
+                                        <a href="/asset-detail/?id=<?php echo esc_attr($id); ?>" title="Edit">✏️ Edit</a>
+                                        <button title="Remove" onclick="removeFromProject(<?php echo $id; ?>)">❌ Remove</button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Detail view (original toolbar content) -->
+                                <div class="fm-pv-detail-layout">
+                                    <div class="fm-pv-toolbar-row">
+                                        <?php foreach ($labels as $code): 
+                                            if (isset($label_map[$code])):
                                         ?>
                                             <span class="fm-pv-label fm-pv-label-<?php echo esc_attr($code); ?>" 
                                                   title="<?php echo esc_attr($label_map[$code]); ?>">
@@ -950,54 +1220,31 @@ add_shortcode('fastmedia_project_view', function () {
                                         </div>
                                         
                                         <?php if (!in_array('BR', $labels)): ?>
-                                            <button onclick="suggestForBrand(<?php echo $id; ?>, this)" style="padding:4px 8px;background:#000;color:white;border:none;border-radius:4px;cursor:pointer;font-size:10px;">Suggest for Brand</button>
+                                            <button onclick="suggestForBrand(<?php echo $id; ?>, this)" 
+                                                    title="Propose this asset for brand approval"
+                                                    style="padding:6px 10px;background:#000;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;">Suggest for Brand</button>
                                         <?php else: ?>
                                             <span style="padding:2px 6px;background:#999;color:white;border-radius:4px;font-size:10px;">
-                                                <?php echo $is_approved ? '✅ Approved' : '⏳ Pending'; ?>
+                                                <?php echo $is_approved ? '✅' : '⏳'; ?>
                                             </span>
                                         <?php endif; ?>
                                     </div>
-                                    
-                                    <div class="fm-pv-labels-line2">
-                                        <?php 
-                                        $label_count = 0;
-                                        foreach ($labels as $code): 
-                                            if (isset($label_map[$code])):
-                                                $label_count++;
-                                                if ($label_count > 3):
-                                        ?>
-                                            <span class="fm-pv-label fm-pv-label-<?php echo esc_attr($code); ?>" 
-                                                  title="<?php echo esc_attr($label_map[$code]); ?>">
-                                                <?php echo esc_html($code); ?>
-                                            </span>
-                                        <?php 
-                                                endif;
-                                            endif;
-                                        endforeach; ?>
-                                    </div>
-                                </div>
 
-                                <!-- Stack 3: Project toggle (single line) -->
-                                <div class="fm-pv-stack-project">
                                     <div class="fm-pv-toolbar-row">
                                         <div class="fm-pv-project-toggle">
                                             <?php echo fastmedia_project_toggle_ui($id); ?>
                                         </div>
+                                        <?php if (function_exists('fastmedia_rating_ui')): ?>
+                                            <?php echo fastmedia_rating_ui($id); ?>
+                                        <?php endif; ?>
                                     </div>
-                                </div>
 
-                                <!-- Stack 4: Actions (share/download line 1, edit/remove line 2) -->
-                                <div class="fm-pv-stack-actions">
-                                    <div class="fm-pv-toolbar-buttons">
+                                    <div class="fm-pv-toolbar-row fm-pv-toolbar-buttons">
                                         <button title="Copy share link" onclick="copyShareLink(<?php echo $id; ?>)">🔗 Share</button>
                                         <button title="Download full resolution" onclick="downloadAsset(<?php echo $id; ?>)">⬇️ Download</button>
                                         <a href="/asset-detail/?id=<?php echo esc_attr($id); ?>" title="Edit details">✏️ Edit</a>
                                         <button title="Remove from project" onclick="removeFromProject(<?php echo $id; ?>)">❌ Remove</button>
                                     </div>
-                                </div>
-                                
-                                <div style="font-size: 12px; color: #666; margin-top: 8px;">
-                                    File size: <?php echo $file_size_formatted; ?>
                                 </div>
                             </div>
                         </div>
@@ -1253,15 +1500,19 @@ add_shortcode('fastmedia_project_view', function () {
         .then(data => {
             if (data.success) {
                 const pendingSpan = document.createElement('span');
-                pendingSpan.style.cssText = 'padding:4px 8px;background:#999;color:white;border-radius:4px;font-size:12px;';
-                pendingSpan.textContent = '⏳ Pending';
+                pendingSpan.style.cssText = 'padding:2px 6px;background:#999;color:white;border-radius:4px;font-size:10px;';
+                pendingSpan.textContent = '⏳';
                 button.parentNode.replaceChild(pendingSpan, button);
             } else {
                 alert('Error suggesting for brand');
                 button.disabled = false;
-                button.textContent = 'Suggest for Brand';
+                button.textContent = 'Suggest';
             }
         });
+    }
+    
+    function showLabelsModal(assetId) {
+        // This function is no longer needed as we're using dropdown
     }
     
     function bulkCopyToProject() {
@@ -1314,9 +1565,6 @@ add_shortcode('fastmedia_project_view', function () {
         }
         
         if (confirm('Move ' + selected.length + ' selected assets to "' + moveTo + '"?')) {
-            // This would need AJAX implementation to:
-            // 1. Remove from current project
-            // 2. Add to new project
             selected.forEach(cb => {
                 const formData = new FormData();
                 formData.append('action', 'fastmedia_move_to_project');
@@ -1350,11 +1598,14 @@ add_shortcode('fastmedia_project_view', function () {
         const grid = document.querySelector('.fm-pv-grid');
         const buttons = document.querySelectorAll('.fm-pv-view-btn');
         
+        // Remove all view classes
         grid.classList.remove('detail-view', 'mosaic-view', 'list-view');
         buttons.forEach(btn => btn.classList.remove('active'));
         
+        // Add new view class
         grid.classList.add(viewType + '-view');
         
+        // Update active button
         const activeBtn = Array.from(buttons).find(btn => 
             (viewType === 'detail' && btn.textContent === '⊞') ||
             (viewType === 'mosaic' && btn.textContent === '▦') ||
@@ -1362,6 +1613,23 @@ add_shortcode('fastmedia_project_view', function () {
         );
         if (activeBtn) {
             activeBtn.classList.add('active');
+        }
+        
+        // Show/hide list view stacks
+        if (viewType === 'list') {
+            document.querySelectorAll('.fm-pv-stack-rating, .fm-pv-stack-labels, .fm-pv-stack-project, .fm-pv-stack-actions').forEach(el => {
+                el.style.display = 'flex';
+            });
+            document.querySelectorAll('.fm-pv-detail-layout').forEach(el => {
+                el.style.display = 'none';
+            });
+        } else {
+            document.querySelectorAll('.fm-pv-stack-rating, .fm-pv-stack-labels, .fm-pv-stack-project, .fm-pv-stack-actions').forEach(el => {
+                el.style.display = 'none';
+            });
+            document.querySelectorAll('.fm-pv-detail-layout').forEach(el => {
+                el.style.display = 'block';
+            });
         }
         
         localStorage.setItem('fastmedia_view', viewType);
@@ -1466,4 +1734,58 @@ add_action('wp_ajax_download_attachment', function() {
     
     readfile($file);
     exit;
+});
+
+// Add the copy/move AJAX handlers
+add_action('wp_ajax_fastmedia_copy_to_project', function() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    $attachment_id = intval($_POST['attachment_id']);
+    $to_project = sanitize_text_field($_POST['to_project']);
+    $user_id = get_current_user_id();
+    
+    if (get_post_field('post_author', $attachment_id) != $user_id) {
+        wp_send_json_error('Permission denied');
+    }
+    
+    $projects = get_post_meta($attachment_id, 'fastmedia_projects', true) ?: [];
+    if (!in_array($to_project, $projects)) {
+        $projects[] = $to_project;
+        update_post_meta($attachment_id, 'fastmedia_projects', $projects);
+    }
+    
+    wp_send_json_success(['message' => 'Copied to project']);
+});
+
+add_action('wp_ajax_fastmedia_move_to_project', function() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    $attachment_id = intval($_POST['attachment_id']);
+    $from_project = sanitize_text_field($_POST['from_project']);
+    $to_project = sanitize_text_field($_POST['to_project']);
+    $user_id = get_current_user_id();
+    
+    if (get_post_field('post_author', $attachment_id) != $user_id) {
+        wp_send_json_error('Permission denied');
+    }
+    
+    $projects = get_post_meta($attachment_id, 'fastmedia_projects', true) ?: [];
+    
+    // Remove from current project
+    $projects = array_filter($projects, function($p) use ($from_project) {
+        return $p !== $from_project;
+    });
+    
+    // Add to new project
+    if (!in_array($to_project, $projects)) {
+        $projects[] = $to_project;
+    }
+    
+    update_post_meta($attachment_id, 'fastmedia_projects', array_values($projects));
+    
+    wp_send_json_success(['message' => 'Moved to project']);
 });
