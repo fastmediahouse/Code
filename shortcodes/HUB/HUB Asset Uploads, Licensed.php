@@ -66,6 +66,12 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         z-index: 3;
         width: 24px;
         height: 24px;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    .fastmedia-tile:hover .fastmedia-checkbox,
+    .fastmedia-checkbox:checked {
+        opacity: 1;
     }
     .fm-image-wrapper {
         position: relative;
@@ -92,24 +98,6 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         min-width: auto !important;
         height: auto !important;
     }
-    /* Fix viewing header - make it smaller and cleaner */
-    .fm-collapsible-header {
-        background: #f8f9fa;
-        padding: 6px 12px;
-        margin-bottom: 15px;
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 13px;
-        color: #666;
-    }
-    .fm-collapsible-header:hover { 
-        background: #f0f0f2;
-        color: #333;
-    }
     .fm-label {
         font-size: 10px;
         font-weight: bold;
@@ -128,6 +116,7 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
     .fm-label-VI { background: #7a4dc9; }
     .fm-label-VC { background: #c62828; }
     .fm-label-AI { background: #444; }
+    .fm-label-AN { background: #9c27b0; }
     .fm-dropdown-labels {
         position: relative;
         display: inline-block;
@@ -175,33 +164,7 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         border-radius: 3px;
     }
     .fastmedia-toolbar {
-        overflow: hidden;
-        transition: all 0.3s ease;
-    }
-    /* Keep the collapse/expand mechanism working */
-    .fastmedia-toolbar.collapsed {
-        max-height: 0;
-        margin-top: 0;
-        overflow: hidden;
-    }
-    
-    .fastmedia-toolbar:not(.collapsed) {
-        max-height: 500px; /* Enough for content */
-        overflow: visible;
-    }
-    .fm-toolbar-toggle {
-        font-size: 12px;
-        color: #999;
-        cursor: pointer;
-        text-align: center;
-        padding: 6px;
-        margin: 12px -6px 0 -6px;
-        border-top: 1px solid #f0f0f0;
-    }
-    .fm-toolbar-toggle:hover {
-        color: #333;
-        background: #f5f5f5;
-        border-radius: 4px;
+        margin-top: 10px;
     }
     .fm-toolbar-content {
         padding: 8px 0;
@@ -211,23 +174,25 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         gap: 6px;
         margin: 10px 0;
         align-items: center;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
     }
     .fm-toolbar-buttons {
         display: flex;
         gap: 4px;
+        flex-wrap: wrap;
     }
     .fm-toolbar-buttons button,
     .fm-toolbar-buttons a {
         background: white;
         border: 1px solid #ccc;
         border-radius: 4px;
-        font-size: 13px;
-        padding: 6px 10px;
+        font-size: 12px;
+        padding: 5px 8px;
         text-align: center;
         cursor: pointer;
         text-decoration: none;
         color: #333;
+        white-space: nowrap;
     }
     .fm-toolbar-buttons button:hover,
     .fm-toolbar-buttons a:hover {
@@ -236,26 +201,21 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
     }
     /* Fix project toggle button size */
     .fm-project-toggle button,
-    .fm-project-toggle .project-toggle-btn {
+    .fm-project-toggle .project-toggle-btn,
+    .fm-project-toggle .toggle-btn {
         background: #f5f5f5;
         border: 1px solid #ddd;
         border-radius: 4px;
         padding: 2px;
-        font-size: 12px !important;
+        font-size: 11px !important;
         line-height: 1;
         cursor: pointer;
-        width: 20px !important;
-        height: 20px !important;
+        width: 18px !important;
+        height: 18px !important;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-    }
-    /* Fix project toggle button specifically */
-    .fm-project-toggle button {
-        font-size: 12px !important;
-        width: 20px !important;
-        height: 20px !important;
-        padding: 2px !important;
+        min-width: 18px !important;
     }
     /* Fix suggest for brand button size */
     .fm-toolbar-row button[onclick*="suggestForBrand"] {
@@ -263,56 +223,144 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         font-size: 13px !important;
         height: auto !important;
         width: auto !important;
+        display: inline-block !important;
+    }
+    /* Fix project toggle select size */
+    .fm-project-toggle select,
+    .fm-project-toggle .project-picker {
+        font-size: 12px !important;
+        padding: 4px 8px !important;
+        height: 26px !important;
     }
     
-    /* View modes */
-    .fastmedia-grid.mosaic-view .fm-tile-details,
-    .fastmedia-grid.mosaic-view .fastmedia-toolbar,
-    .fastmedia-grid.mosaic-view .fm-toolbar-toggle {
-        display: none !important;
+    /* View controls FROM PROJECT VIEW */
+    .fm-pv-view-controls {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 15px;
+        gap: 10px;
     }
     
-    .fastmedia-grid.mosaic-view {
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    .fm-pv-select {
+        padding: 6px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+    }
+    
+    .fm-pv-view-switcher {
+        display: flex;
         gap: 4px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 2px;
+    }
+    
+    .fm-pv-view-btn {
+        padding: 4px 8px;
+        border: none;
+        background: transparent;
+        border-radius: 3px;
+        cursor: pointer;
+        color: #333;
+    }
+    
+    .fm-pv-view-btn.active {
+        background: #e0e0e0;
+    }
+    
+    .fm-pv-view-btn:hover {
+        background: #f0f0f0;
+    }
+    
+    /* MOSAIC VIEW FROM PROJECT VIEW */
+    .fastmedia-grid.mosaic-view {
+        display: block !important;
+        column-count: 4;
+        column-gap: 10px;
+        grid: none;
+    }
+    
+    @media (max-width: 1200px) {
+        .fastmedia-grid.mosaic-view { column-count: 3; }
+    }
+    @media (max-width: 768px) {
+        .fastmedia-grid.mosaic-view { column-count: 2; }
+    }
+    @media (max-width: 480px) {
+        .fastmedia-grid.mosaic-view { column-count: 1; }
     }
     
     .fastmedia-grid.mosaic-view .fastmedia-tile {
+        break-inside: avoid;
+        margin-bottom: 10px;
+        display: inline-block;
+        width: 100%;
         padding: 4px;
-        border-radius: 4px;
     }
     
-    .fastmedia-grid.mosaic-view .fm-image-wrapper {
-        margin: 0;
+    .fastmedia-grid.mosaic-view .fm-tile-details,
+    .fastmedia-grid.mosaic-view .fastmedia-toolbar {
+        display: none !important;
     }
     
-    .fastmedia-grid.mosaic-view .fastmedia-checkbox {
-        opacity: 0;
-        transition: opacity 0.2s;
-    }
-    
-    .fastmedia-grid.mosaic-view .fastmedia-tile:hover .fastmedia-checkbox {
-        opacity: 1;
-    }
-    
-    /* List view - everything on same line, always show toolbar */
+    /* LIST VIEW - Fixed height with dark separators and grey backgrounds */
     .fastmedia-grid.list-view {
         display: block !important;
-        grid-template-columns: none !important;
+        grid: none;
     }
     
     .fastmedia-grid.list-view .fastmedia-tile {
         display: flex;
-        align-items: center;
-        gap: 15px;
-        margin-bottom: 5px;
-        padding: 8px 12px;
+        align-items: stretch;
+        gap: 0;
+        margin-bottom: 0;
+        padding: 0;
+        height: 80px;
+        border: none;
+        border-bottom: none;
+        background: #fafafa;
+        position: relative;
+    }
+    
+    .fastmedia-grid.list-view .fastmedia-tile::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0; /* Extended to the end of the box */
+        height: 2px;
+        background: #666;
+    }
+    
+    .fastmedia-grid.list-view .fastmedia-tile:hover {
+        background: #f0f0f0;
+    }
+    
+    .fastmedia-grid.list-view .fastmedia-tile:hover::after {
+        background: #444;
+    }
+    
+    .fastmedia-grid.list-view .fastmedia-tile:last-child::after {
+        display: none;
+    }
+    
+    .fastmedia-grid.list-view .fastmedia-checkbox {
+        position: relative;
+        top: 0;
+        left: 0;
+        opacity: 1;
+        margin: 0 12px;
+        flex-shrink: 0;
+        align-self: center;
     }
     
     .fastmedia-grid.list-view .fm-image-wrapper {
         width: 60px;
         height: 60px;
         flex-shrink: 0;
+        align-self: center;
+        margin-right: 12px;
     }
     
     .fastmedia-grid.list-view .fm-image-wrapper img {
@@ -322,85 +370,285 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
     }
     
     .fastmedia-grid.list-view .fm-tile-details {
-        flex: 0 0 250px;
-        min-width: 0;
+        flex: 0 0 220px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 10px 15px;
+        background: #f8f8f8;
+        height: 100%;
+        position: relative;
+        border-left: none;
+        border-right: none;
+        min-height: 0; /* Allow flex shrinking */
+    }
+    
+    /* Add pseudo-elements for shorter borders */
+    .fastmedia-grid.list-view .fm-tile-details::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 15px;
+        bottom: 15px;
+        width: 1px;
+        background: #666;
+    }
+    
+    .fastmedia-grid.list-view .fm-tile-details::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 15px;
+        bottom: 15px;
+        width: 1px;
+        background: #666;
     }
     
     .fastmedia-grid.list-view .fm-tile-details strong {
-        white-space: nowrap;
+        font-size: 13px;
+        margin: 0 0 4px 0;
+        display: block;
         overflow: hidden;
-        text-overflow: ellipsis;
-        display: block !important;
-        margin: 0 !important;
+        line-height: 1.5;
+        max-height: 3em; /* 2 lines at 1.5 line-height */
+        word-break: break-word;
+        flex-shrink: 0; /* Prevent shrinking */
     }
     
     .fastmedia-grid.list-view .fm-tile-details small {
-        display: inline;
+        font-size: 11px;
+        color: #666;
     }
     
     .fastmedia-grid.list-view .fastmedia-toolbar {
-        position: static !important;
-        opacity: 1 !important;
-        display: flex !important;
         flex: 1;
-        align-items: center;
+        display: block !important;
+        opacity: 1 !important;
         margin: 0;
-        overflow: visible !important;
-        max-height: none !important;
-    }
-    
-    .fastmedia-grid.list-view .fastmedia-toolbar.collapsed {
-        display: flex !important;
-        max-height: none !important;
+        height: 100%;
     }
     
     .fastmedia-grid.list-view .fm-toolbar-content {
         display: flex;
-        align-items: center;
-        gap: 10px;
+        gap: 0;
+        height: 100%;
+        align-items: stretch;
         padding: 0;
     }
     
-    .fastmedia-grid.list-view .fm-toolbar-row {
-        margin: 0;
-        flex-wrap: nowrap;
+    /* List view: Rating stack with vertical thumbs - MORE HORIZONTAL SPACE */
+    .fastmedia-grid.list-view .fm-pv-stack-rating {
+        display: flex !important;
+        flex-direction: column;
+        gap: 2px;
+        justify-content: center;
+        padding-top: 0;
+        width: 120px; /* Increased from 80px for ~50% more space */
+        flex-shrink: 0;
+        padding: 0 20px;
+        position: relative;
     }
     
-    .fastmedia-grid.list-view .fm-toolbar-toggle {
-        display: none !important;
+    .fastmedia-grid.list-view .fm-pv-stack-rating::after {
+        content: '';
+        position: absolute;
+        right: -10px; /* Middle of the 20px padding */
+        top: 15px;
+        bottom: 15px;
+        width: 1px;
+        background: #666;
     }
     
-    /* Hide file size in list view */
-    .fastmedia-grid.list-view .fm-toolbar-content > div:last-child {
+    .fastmedia-grid.list-view .fm-pv-stack-rating .fm-rating-container {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        align-items: center;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-stack-rating button {
+        font-size: 14px !important;
+        padding: 2px 6px !important;
+        border: 1px solid #ccc !important;
+        background: white !important;
+        border-radius: 4px !important;
+        cursor: pointer !important;
+        margin: 0 !important;
+        width: 40px !important;
+        height: 26px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-stack-rating button:hover {
+        background: #f0f0f0 !important;
+    }
+    
+    /* List view: Labels stack with flexible grid - REDUCED WIDTH */
+    .fastmedia-grid.list-view .fm-pv-stack-labels {
+        display: flex !important;
+        flex-direction: column;
+        gap: 4px;
+        justify-content: center;
+        width: 220px; /* Reduced from 260px */
+        flex-shrink: 0;
+        padding: 0 15px; /* Reduced padding from 20px */
+        position: relative;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-stack-labels::after {
+        content: '';
+        position: absolute;
+        right: -7.5px; /* Middle of the 15px padding */
+        top: 15px;
+        bottom: 15px;
+        width: 1px;
+        background: #666;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-labels-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        max-width: 100%;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-stack-labels .fm-label {
+        font-size: 9px !important;
+        padding: 2px 2px !important; /* Reduced padding to fit square around letters */
+        margin: 0 !important;
+        text-align: center;
+        min-width: 18px; /* Ensure square shape */
+        display: inline-block;
+        line-height: 1.2;
+    }
+    
+    .fastmedia-grid.list-view .fm-labels-btn {
+        font-size: 11px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #ccc;
+        background: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-suggest-btn {
+        font-size: 10px !important;
+        padding: 2px 6px !important;
+        background: #000;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    /* List view: Project stack - INCREASED WIDTH */
+    .fastmedia-grid.list-view .fm-pv-stack-project {
+        display: flex !important;
+        align-items: center;
+        width: 240px; /* Increased from 200px */
+        flex-shrink: 0;
+        padding: 0 20px;
+        position: relative;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-stack-project::after {
+        content: '';
+        position: absolute;
+        right: -10px; /* Middle of the 20px padding */
+        top: 15px;
+        bottom: 15px;
+        width: 1px;
+        background: #666;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-stack-project .fm-project-toggle {
+        width: 100%;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-stack-project select {
+        width: 100%;
+        font-size: 11px !important;
+        padding: 4px 6px !important;
+    }
+    
+    /* List view: Actions stack with 2x2 grid */
+    .fastmedia-grid.list-view .fm-pv-stack-actions {
+        display: flex !important;
+        align-items: center;
+        width: 180px;
+        flex-shrink: 0;
+        padding: 0 20px;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2px;
+        width: 100%;
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-actions-grid button,
+    .fastmedia-grid.list-view .fm-pv-actions-grid a {
+        font-size: 11px !important;
+        padding: 4px 6px !important;
+        border: 1px solid #ccc;
+        background: white;
+        border-radius: 4px;
+        text-align: center;
+        cursor: pointer;
+        text-decoration: none;
+        color: #333;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 26px;
+        white-space: nowrap;
+        gap: 2px; /* Space between icon and text */
+    }
+    
+    .fastmedia-grid.list-view .fm-pv-actions-grid button:hover,
+    .fastmedia-grid.list-view .fm-pv-actions-grid a:hover {
+        background: #f0f0f0;
+        text-decoration: none;
+    }
+    
+    /* List view: Dropdown labels in list view */
+    .fastmedia-grid.list-view .fm-dropdown-labels {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .fastmedia-grid.list-view .fm-dropdown-labels .fm-dropdown-content {
         display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: #fff;
+        border: 1px solid #ccc;
+        padding: 10px;
+        z-index: 100;
+        border-radius: 6px;
+        min-width: 250px;
+        max-height: 400px;
+        overflow-y: auto;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .fastmedia-grid.list-view .fm-dropdown-labels:hover .fm-dropdown-content {
+        display: block;
+    }
+    
+    /* Hide detail layout in list view */
+    .fastmedia-grid.list-view .fm-pv-detail-layout {
+        display: none !important;
     }
     </style>
 
     <div class="fastmedia-wrapper">
-        <div class="fm-collapsible-header" onclick="this.classList.toggle('collapsed')">
-            <span>
-                <?php 
-                $user_id = get_current_user_id();
-                $user = get_userdata($user_id);
-                $first = esc_html(get_user_meta($user_id, 'first_name', true));
-                $last = esc_html(get_user_meta($user_id, 'last_name', true));
-                $full_name = trim($first . ' ' . $last) ?: 'Unnamed User';
-                
-                // Fix the header text based on actual badge type
-                if ($badge_type === 'UP') {
-                    echo 'Viewing uploaded assets for: ' . $full_name;
-                } elseif ($badge_type === 'ST') {
-                    echo 'Viewing licensed assets for: ' . $full_name;
-                } elseif ($badge_type === 'ALL') {
-                    echo 'Viewing all assets for: ' . $full_name;
-                } else {
-                    echo 'Viewing assets for: ' . $full_name;
-                }
-                ?>
-            </span>
-            <span>▼</span>
-        </div>
-
         <div class="fastmedia-bulkbar" id="bulk-actions">
             <span><strong id="selected-count">0</strong> selected</span>
             <button onclick="selectAll()">Select All</button>
@@ -410,19 +658,19 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
             <button onclick="bulkDelete()">🗑️ Delete</button>
         </div>
 
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 15px; gap: 10px;">
-            <select id="sort-select" onchange="sortAssets(this.value)" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                <option value="date-desc" <?php echo (isset($_GET['sort']) && $_GET['sort'] === 'date-desc') ? 'selected' : ''; ?>>Newest First</option>
-                <option value="date-asc" <?php echo (isset($_GET['sort']) && $_GET['sort'] === 'date-asc') ? 'selected' : ''; ?>>Oldest First</option>
-                <option value="name-asc" <?php echo (isset($_GET['sort']) && $_GET['sort'] === 'name-asc') ? 'selected' : ''; ?>>Name A-Z</option>
-                <option value="name-desc" <?php echo (isset($_GET['sort']) && $_GET['sort'] === 'name-desc') ? 'selected' : ''; ?>>Name Z-A</option>
-                <option value="size-desc" <?php echo (isset($_GET['sort']) && $_GET['sort'] === 'size-desc') ? 'selected' : ''; ?>>Largest First</option>
-                <option value="size-asc" <?php echo (isset($_GET['sort']) && $_GET['sort'] === 'size-asc') ? 'selected' : ''; ?>>Smallest First</option>
+        <div class="fm-pv-view-controls">
+            <select class="fm-pv-select" onchange="sortAssets(this.value)">
+                <option value="date-desc" <?php selected(isset($_GET['sort']) && $_GET['sort'] === 'date-desc'); ?>>Newest First</option>
+                <option value="date-asc" <?php selected(isset($_GET['sort']) && $_GET['sort'] === 'date-asc'); ?>>Oldest First</option>
+                <option value="name-asc" <?php selected(isset($_GET['sort']) && $_GET['sort'] === 'name-asc'); ?>>Name A-Z</option>
+                <option value="name-desc" <?php selected(isset($_GET['sort']) && $_GET['sort'] === 'name-desc'); ?>>Name Z-A</option>
+                <option value="size-desc" <?php selected(isset($_GET['sort']) && $_GET['sort'] === 'size-desc'); ?>>Largest First</option>
+                <option value="size-asc" <?php selected(isset($_GET['sort']) && $_GET['sort'] === 'size-asc'); ?>>Smallest First</option>
             </select>
-            <div style="display: flex; gap: 4px; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
-                <button onclick="setView('detail')" class="view-btn active" title="Detail View" style="padding: 4px 8px; border: none; background: #e0e0e0; border-radius: 3px; cursor: pointer; color: #333;">⊞</button>
-                <button onclick="setView('mosaic')" class="view-btn" title="Mosaic View" style="padding: 4px 8px; border: none; background: transparent; border-radius: 3px; cursor: pointer; color: #333;">▦</button>
-                <button onclick="setView('list')" class="view-btn" title="List View" style="padding: 4px 8px; border: none; background: transparent; border-radius: 3px; cursor: pointer; color: #333;">☰</button>
+            <div class="fm-pv-view-switcher">
+                <button onclick="setView('detail')" class="fm-pv-view-btn active" title="Detail View">⊞</button>
+                <button onclick="setView('mosaic')" class="fm-pv-view-btn" title="Mosaic View">▦</button>
+                <button onclick="setView('list')" class="fm-pv-view-btn" title="List View">☰</button>
             </div>
         </div>
 
@@ -473,76 +721,137 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
                 </div>
                 
                 <div class="fm-tile-details">
-                    <strong style="font-size: 15px; display: block; margin: 8px 0 4px 0;">
+                    <strong>
                         <?php echo $title; ?>
                         <?php if ($file_ext): ?>
                             <span style="font-size: 11px; color: #666; font-weight: normal;">(<?php echo esc_html($file_ext_upper); ?>)</span>
                         <?php endif; ?>
                     </strong>
-                    <small style="color: #666;"><?php echo $date; ?></small>
+                    <small style="color: #666; display: block;"><?php echo $date; ?> • <?php echo $file_size_formatted; ?></small>
                 </div>
 
-                <div class="fm-toolbar-toggle" onclick="toggleToolbar(this)">
-                    ▼ Actions ▼
-                </div>
-                <div class="fastmedia-toolbar collapsed" data-asset-id="<?php echo $id; ?>">
+                <div class="fastmedia-toolbar">
                     <div class="fm-toolbar-content">
-                        <div class="fm-toolbar-row">
-                            <?php foreach ($labels as $code): 
-                                if (isset($label_map[$code])):
-                            ?>
-                                <span class="fm-label fm-label-<?php echo esc_attr($code); ?>" 
-                                      title="<?php echo esc_attr($label_map[$code]); ?>">
-                                    <?php echo esc_html($code); ?>
-                                </span>
-                            <?php 
-                                endif;
-                            endforeach; ?>
-                            
-                            <div class="fm-dropdown-labels">
-                                <button type="button" class="fm-labels-btn">Labels</button>
-                                <div class="fm-dropdown-content">
-                                    <?php foreach ($label_map as $code => $desc):
-                                        $checked = in_array($code, $labels) ? 'checked' : '';
-                                        $disabled = in_array($code, ['ST', 'UP']) ? 'disabled' : '';
-                                    ?>
-                                        <label>
-                                            <input type="checkbox" value="<?php echo esc_attr($code); ?>" <?php echo $checked; ?> <?php echo $disabled; ?>> 
-                                            <strong><?php echo esc_html($code); ?></strong> - <?php echo esc_html($desc); ?>
-                                        </label>
-                                    <?php endforeach; ?>
-                                    <button type="button" style="margin-top:8px;width:100%;padding:6px;background:#0073aa;color:white;border:none;border-radius:4px;cursor:pointer;" onclick="saveLabels(<?php echo $id; ?>, this)">💾 Save</button>
-                                </div>
-                            </div>
-                            
-                            <?php if (!in_array('BR', $labels)): ?>
-                                <button style="padding:6px 10px;background:#000;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;" onclick="suggestForBrand(<?php echo $id; ?>, this)">Suggest for Brand</button>
-                            <?php else: ?>
-                                <span style="padding:6px 10px;background:#999;color:white;border-radius:4px;">
-                                    <?php echo $is_approved ? '✅ Brand Approved' : '⏳ Pending Review'; ?>
-                                </span>
-                            <?php endif; ?>
-                        </div>
-
-                        <div class="fm-toolbar-row">
-                            <div class="fm-project-toggle">
-                                <?php echo fastmedia_project_toggle_ui($id); ?>
-                            </div>
+                        <!-- List view layout -->
+                        <div class="fm-pv-stack-rating">
                             <?php if (function_exists('fastmedia_rating_ui')): ?>
                                 <?php echo fastmedia_rating_ui($id); ?>
                             <?php endif; ?>
                         </div>
+                        
+                        <div class="fm-pv-stack-labels">
+                            <div class="fm-pv-labels-grid">
+                                <?php 
+                                $label_count = 0;
+                                foreach ($labels as $code): 
+                                    if (isset($label_map[$code]) && $label_count < 4):
+                                        $label_count++;
+                                ?>
+                                    <span class="fm-label fm-label-<?php echo esc_attr($code); ?>" 
+                                          title="<?php echo esc_attr($label_map[$code]); ?>">
+                                        <?php echo esc_html($code); ?>
+                                    </span>
+                                <?php 
+                                    endif;
+                                endforeach; ?>
+                            </div>
+                            
+                            <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                <div class="fm-dropdown-labels">
+                                    <button type="button" class="fm-labels-btn" onclick="event.stopPropagation();">Labels</button>
+                                    <div class="fm-dropdown-content" onclick="event.stopPropagation();">
+                                        <?php foreach ($label_map as $code => $desc):
+                                            $checked = in_array($code, $labels) ? 'checked' : '';
+                                            $disabled = in_array($code, ['ST', 'UP']) ? 'disabled' : '';
+                                        ?>
+                                            <label>
+                                                <input type="checkbox" value="<?php echo esc_attr($code); ?>" <?php echo $checked; ?> <?php echo $disabled; ?>> 
+                                                <strong><?php echo esc_html($code); ?></strong> - <?php echo esc_html($desc); ?>
+                                            </label>
+                                        <?php endforeach; ?>
+                                        <button type="button" onclick="saveLabels(<?php echo $id; ?>, this)" style="margin-top:8px;width:100%;padding:6px;background:#0073aa;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;">Save</button>
+                                    </div>
+                                </div>
+                                
+                                <?php if (!in_array('BR', $labels)): ?>
+                                    <button onclick="suggestForBrand(<?php echo $id; ?>, this)" 
+                                            class="fm-pv-suggest-btn"
+                                            title="Propose this asset for brand approval">Brand Suggest</button>
+                                <?php else: ?>
+                                    <span style="padding:2px 6px;background:#999;color:white;border-radius:4px;font-size:10px;">
+                                        <?php echo $is_approved ? '✅ Approved' : '⏳ Brand Pending'; ?>
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
 
-                        <div class="fm-toolbar-row fm-toolbar-buttons">
-                            <button title="Copy share link to clipboard" onclick="copyShareLink(<?php echo $id; ?>)">🔗</button>
-                            <a href="/asset-detail/?id=<?php echo esc_attr($id); ?>#highres" title="Download high resolution version">⬇️</a>
-                            <a href="<?php echo esc_url($url); ?>" target="_blank" title="Download preview/comp version">📥</a>
-                            <a href="/asset-detail/?id=<?php echo esc_attr($id); ?>" title="Edit asset details">✏️</a>
-                            <button title="Delete this asset permanently" onclick="deleteAsset(<?php echo $id; ?>)">🗑️</button>
+                        <div class="fm-pv-stack-project">
+                            <?php echo fastmedia_project_toggle_ui($id); ?>
+                        </div>
+
+                        <div class="fm-pv-stack-actions">
+                            <div class="fm-pv-actions-grid">
+                                <button title="Share" onclick="copyShareLink(<?php echo $id; ?>)">🔗 Share</button>
+                                <button title="Download" onclick="downloadAsset(<?php echo $id; ?>)">⬇️ Download</button>
+                                <a href="/asset-detail/?id=<?php echo esc_attr($id); ?>" title="Edit">✏️ Edit</a>
+                                <button title="Delete" onclick="deleteAsset(<?php echo $id; ?>)">🗑️ Delete</button>
+                            </div>
                         </div>
                         
-                        <div style="font-size: 12px; color: #666; margin-top: 8px;">
-                            File size: <?php echo $file_size_formatted; ?>
+                        <!-- Detail view (original toolbar content) -->
+                        <div class="fm-pv-detail-layout">
+                            <div class="fm-toolbar-row">
+                                <?php foreach ($labels as $code): 
+                                    if (isset($label_map[$code])):
+                                ?>
+                                    <span class="fm-label fm-label-<?php echo esc_attr($code); ?>" 
+                                          title="<?php echo esc_attr($label_map[$code]); ?>">
+                                        <?php echo esc_html($code); ?>
+                                    </span>
+                                <?php 
+                                    endif;
+                                endforeach; ?>
+                                
+                                <div class="fm-dropdown-labels">
+                                    <button type="button" class="fm-labels-btn">Labels</button>
+                                    <div class="fm-dropdown-content">
+                                        <?php foreach ($label_map as $code => $desc):
+                                            $checked = in_array($code, $labels) ? 'checked' : '';
+                                            $disabled = in_array($code, ['ST', 'UP']) ? 'disabled' : '';
+                                        ?>
+                                            <label>
+                                                <input type="checkbox" value="<?php echo esc_attr($code); ?>" <?php echo $checked; ?> <?php echo $disabled; ?>> 
+                                                <strong><?php echo esc_html($code); ?></strong> - <?php echo esc_html($desc); ?>
+                                            </label>
+                                        <?php endforeach; ?>
+                                        <button type="button" style="margin-top:8px;width:100%;padding:6px;background:#0073aa;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;" onclick="saveLabels(<?php echo $id; ?>, this)">Save</button>
+                                    </div>
+                                </div>
+                                
+                                <?php if (!in_array('BR', $labels)): ?>
+                                    <button style="padding:6px 10px;background:#000;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;" onclick="suggestForBrand(<?php echo $id; ?>, this)">Suggest for Brand</button>
+                                <?php else: ?>
+                                    <span style="padding:4px 8px;background:#999;color:white;border-radius:4px;font-size:12px;">
+                                        <?php echo $is_approved ? '✅ Approved' : '⏳ Pending'; ?>
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="fm-toolbar-row">
+                                <div class="fm-project-toggle">
+                                    <?php echo fastmedia_project_toggle_ui($id); ?>
+                                </div>
+                                <?php if (function_exists('fastmedia_rating_ui')): ?>
+                                    <?php echo fastmedia_rating_ui($id); ?>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="fm-toolbar-row fm-toolbar-buttons">
+                                <button title="Copy share link" onclick="copyShareLink(<?php echo $id; ?>)">🔗 Share</button>
+                                <button title="Download full resolution" onclick="downloadAsset(<?php echo $id; ?>)">⬇️ Download</button>
+                                <a href="/asset-detail/?id=<?php echo esc_attr($id); ?>" title="Edit details">✏️ Edit</a>
+                                <button title="Delete permanently" onclick="deleteAsset(<?php echo $id; ?>)">🗑️ Delete</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -562,12 +871,6 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
         }).catch(() => {
             prompt('Copy this link:', url);
         });
-    }
-    
-    function toggleToolbar(toggle) {
-        const toolbar = toggle.nextElementSibling;
-        toolbar.classList.toggle('collapsed');
-        toggle.textContent = toolbar.classList.contains('collapsed') ? '▼ Actions ▼' : '▲ Actions ▲';
     }
     
     function updateBulkBar() {
@@ -600,15 +903,39 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
     function bulkDownload() {
         const selected = document.querySelectorAll('.fastmedia-checkbox:checked');
         if (selected.length === 0) {
-            alert('Please select images');
+            alert('Please select images to download');
             return;
         }
-        selected.forEach(cb => {
-            const tile = cb.closest('.fastmedia-tile');
+        
+        if (!confirm('Download ' + selected.length + ' full resolution images?')) {
+            return;
+        }
+        
+        let downloadFrame = document.getElementById('bulk-download-frame');
+        if (!downloadFrame) {
+            downloadFrame = document.createElement('iframe');
+            downloadFrame.id = 'bulk-download-frame';
+            downloadFrame.style.display = 'none';
+            document.body.appendChild(downloadFrame);
+        }
+        
+        let index = 0;
+        function downloadNext() {
+            if (index >= selected.length) {
+                alert('Downloads started for ' + selected.length + ' images');
+                return;
+            }
+            
+            const tile = selected[index].closest('.fastmedia-tile');
             const assetId = tile.dataset.assetId;
-            const link = tile.querySelector('a[title="Highres"]');
-            if (link) window.open(link.href, '_blank');
-        });
+            const downloadUrl = '<?php echo admin_url("admin-ajax.php"); ?>?action=download_attachment&id=' + assetId;
+            downloadFrame.src = downloadUrl;
+            
+            index++;
+            setTimeout(downloadNext, 500);
+        }
+        
+        downloadNext();
     }
     
     function bulkAddToProject() {
@@ -678,30 +1005,42 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
     
     function setView(viewType) {
         const grid = document.querySelector('.fastmedia-grid');
-        const buttons = document.querySelectorAll('.view-btn');
+        const buttons = document.querySelectorAll('.fm-pv-view-btn');
         
         // Remove all view classes
         grid.classList.remove('detail-view', 'mosaic-view', 'list-view');
-        buttons.forEach(btn => {
-            btn.style.background = 'transparent';
-            btn.classList.remove('active');
-        });
+        buttons.forEach(btn => btn.classList.remove('active'));
         
         // Add new view class
         grid.classList.add(viewType + '-view');
         
-        // Highlight active button
+        // Update active button
         const activeBtn = Array.from(buttons).find(btn => 
             (viewType === 'detail' && btn.textContent === '⊞') ||
             (viewType === 'mosaic' && btn.textContent === '▦') ||
             (viewType === 'list' && btn.textContent === '☰')
         );
         if (activeBtn) {
-            activeBtn.style.background = '#e0e0e0';
             activeBtn.classList.add('active');
         }
         
-        // Store preference
+        // Show/hide list view stacks
+        if (viewType === 'list') {
+            document.querySelectorAll('.fm-pv-stack-rating, .fm-pv-stack-labels, .fm-pv-stack-project, .fm-pv-stack-actions').forEach(el => {
+                el.style.display = 'flex';
+            });
+            document.querySelectorAll('.fm-pv-detail-layout').forEach(el => {
+                el.style.display = 'none';
+            });
+        } else {
+            document.querySelectorAll('.fm-pv-stack-rating, .fm-pv-stack-labels, .fm-pv-stack-project, .fm-pv-stack-actions').forEach(el => {
+                el.style.display = 'none';
+            });
+            document.querySelectorAll('.fm-pv-detail-layout').forEach(el => {
+                el.style.display = 'block';
+            });
+        }
+        
         localStorage.setItem('fastmedia_view', viewType);
     }
     
@@ -713,6 +1052,19 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
             setView(savedView);
         }
     });
+    
+    function downloadAsset(assetId) {
+        let downloadFrame = document.getElementById('single-download-frame');
+        if (!downloadFrame) {
+            downloadFrame = document.createElement('iframe');
+            downloadFrame.id = 'single-download-frame';
+            downloadFrame.style.display = 'none';
+            document.body.appendChild(downloadFrame);
+        }
+        
+        const downloadUrl = '<?php echo admin_url("admin-ajax.php"); ?>?action=download_attachment&id=' + assetId;
+        downloadFrame.src = downloadUrl;
+    }
     
     function deleteAsset(assetId, skipConfirm) {
         if (!skipConfirm && !confirm('Are you sure you want to delete this asset? This action cannot be undone.')) return;
@@ -735,36 +1087,64 @@ function render_fastmedia_grid($attachments, $badge_type = 'UP') {
     function saveLabels(assetId, button) {
         button.disabled = true;
         button.textContent = 'Saving...';
-        setTimeout(() => {
-            button.textContent = 'Saved!';
-            setTimeout(() => {
-                button.textContent = '💾 Save';
+        
+        const labelContainer = button.closest('.fm-dropdown-content');
+        const checkedLabels = [];
+        labelContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+            checkedLabels.push(cb.value);
+        });
+        
+        const formData = new FormData();
+        formData.append('action', 'fastmedia_save_labels');
+        formData.append('attachment_id', assetId);
+        formData.append('labels', JSON.stringify(checkedLabels));
+        formData.append('nonce', window.fastmedia_nonce);
+        
+        fetch('/wp-admin/admin-ajax.php', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                button.textContent = 'Saved!';
+                setTimeout(() => location.reload(), 500);
+            } else {
+                alert('Error saving labels');
+                button.textContent = 'Save';
                 button.disabled = false;
-            }, 1000);
-        }, 500);
+            }
+        });
     }
     
     function suggestForBrand(assetId, button) {
-        // Do the action here instead of redirecting
         button.disabled = true;
         button.textContent = 'Suggesting...';
         
-        // Mark as suggested
-        const labels = button.closest('.fm-toolbar-row').querySelector('.fm-dropdown-labels');
-        if (labels) {
-            const brCheckbox = labels.querySelector('input[value="BR"]');
-            if (brCheckbox) {
-                brCheckbox.checked = true;
-            }
-        }
+        const formData = new FormData();
+        formData.append('action', 'fastmedia_suggest_brand');
+        formData.append('attachment_id', assetId);
+        formData.append('nonce', window.fastmedia_nonce);
         
-        // Update button to show pending status
-        setTimeout(() => {
-            const pendingSpan = document.createElement('span');
-            pendingSpan.style.cssText = 'padding:6px 10px;background:#999;color:white;border-radius:4px;';
-            pendingSpan.textContent = '⏳ Pending Review';
-            button.parentNode.replaceChild(pendingSpan, button);
-        }, 500);
+        fetch('/wp-admin/admin-ajax.php', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const pendingSpan = document.createElement('span');
+                pendingSpan.style.cssText = 'padding:4px 8px;background:#999;color:white;border-radius:4px;font-size:12px;';
+                pendingSpan.textContent = '⏳ Pending';
+                button.parentNode.replaceChild(pendingSpan, button);
+            } else {
+                alert('Error suggesting for brand');
+                button.disabled = false;
+                button.textContent = 'Suggest for Brand';
+            }
+        });
     }
     </script>
     <?php
@@ -930,4 +1310,94 @@ add_shortcode('fastmedia_assets_my_assets', function () {
     
     // Render as one grid with ALL badge type
     return render_fastmedia_grid($all_assets, 'ALL');
+});
+
+// AJAX handler for saving labels
+add_action('wp_ajax_fastmedia_save_labels', function() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    $attachment_id = intval($_POST['attachment_id']);
+    $labels = json_decode(stripslashes($_POST['labels']), true);
+    $user_id = get_current_user_id();
+    
+    if (get_post_field('post_author', $attachment_id) != $user_id) {
+        wp_send_json_error('Permission denied');
+    }
+    
+    $source = get_post_meta($attachment_id, 'source', true);
+    
+    if ($source === 'solwee' && !in_array('ST', $labels)) {
+        $labels[] = 'ST';
+    }
+    if ($source !== 'solwee' && !in_array('UP', $labels)) {
+        $labels[] = 'UP';
+    }
+    
+    update_field('fastmedia_asset_labels', $labels, $attachment_id);
+    
+    $activity_log = get_post_meta($attachment_id, 'fastmedia_activity_log', true) ?: [];
+    $user_info = get_userdata($user_id);
+    $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' updated labels';
+    update_post_meta($attachment_id, 'fastmedia_activity_log', array_slice($activity_log, -50));
+    
+    wp_send_json_success(['labels' => $labels]);
+});
+
+// AJAX handler for suggesting brand
+add_action('wp_ajax_fastmedia_suggest_brand', function() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    $attachment_id = intval($_POST['attachment_id']);
+    $user_id = get_current_user_id();
+    
+    if (get_post_field('post_author', $attachment_id) != $user_id) {
+        wp_send_json_error('Permission denied');
+    }
+    
+    $labels = get_field('fastmedia_asset_labels', $attachment_id) ?: [];
+    if (!in_array('BR', $labels)) {
+        $labels[] = 'BR';
+        update_field('fastmedia_asset_labels', $labels, $attachment_id);
+    }
+    
+    update_post_meta($attachment_id, 'fastmedia_brand_proposed', 'yes');
+    
+    $activity_log = get_post_meta($attachment_id, 'fastmedia_activity_log', true) ?: [];
+    $user_info = get_userdata($user_id);
+    $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' suggested for brand';
+    update_post_meta($attachment_id, 'fastmedia_activity_log', array_slice($activity_log, -50));
+    
+    wp_send_json_success(['message' => 'Suggested for brand approval']);
+});
+
+// AJAX handler for downloading attachments
+add_action('wp_ajax_download_attachment', function() {
+    $attachment_id = intval($_GET['id']);
+    $user_id = get_current_user_id();
+    
+    if (get_post_field('post_author', $attachment_id) != $user_id) {
+        wp_die('Access denied');
+    }
+    
+    $file = get_attached_file($attachment_id);
+    if (!$file || !file_exists($file)) {
+        wp_die('File not found');
+    }
+    
+    $filename = basename($file);
+    $mime_type = get_post_mime_type($attachment_id);
+    
+    header('Content-Type: ' . $mime_type);
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . filesize($file));
+    header('Cache-Control: no-cache, must-revalidate');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    
+    readfile($file);
+    exit;
 });
