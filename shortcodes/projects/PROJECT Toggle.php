@@ -1,10 +1,12 @@
 /**
- * ✅ Fastmedia Project Toggle UI - Using Pure WordPress Post Meta (No ACF)
- * Usage: echo fastmedia_project_toggle_ui($attachment_id);
+ * ✅ Fastmedia Project Toggle UI - Handles Both Stock and Uploaded Images
+ * Usage: echo fastmedia_project_toggle_ui($id, $source);
+ * @param string $id - Either attachment ID for uploads or product ID for stock
+ * @param string $source - 'UP' for uploads, 'ST' for stock images
  */
 
-function fastmedia_project_toggle_ui($attachment_id) {
-    if (!is_user_logged_in() || !$attachment_id) return '';
+function fastmedia_project_toggle_ui($id, $source = 'UP') {
+    if (!is_user_logged_in() || !$id) return '';
 
     $user_id = get_current_user_id();
     
@@ -12,25 +14,41 @@ function fastmedia_project_toggle_ui($attachment_id) {
     $user_projects = get_user_meta($user_id, 'fastmedia_user_projects', true);
     $user_projects = is_array($user_projects) ? $user_projects : ['Default'];
     
-    // Get this attachment's projects from post meta (not ACF)
-    $attachment_projects = get_post_meta($attachment_id, 'fastmedia_projects', true);
-    $attachment_projects = is_array($attachment_projects) ? $attachment_projects : [];
+    // Clean the ID based on source
+    $clean_id = $id;
+    if ($source === 'UP' && strpos($id, 'upload-') === 0) {
+        $clean_id = str_replace('upload-', '', $id);
+    }
+    
+    // Get this item's projects based on source type
+    $item_projects = [];
+    
+    if ($source === 'UP') {
+        // For uploads, use post meta
+        $item_projects = get_post_meta($clean_id, 'fastmedia_projects', true);
+        $item_projects = is_array($item_projects) ? $item_projects : [];
+    } else {
+        // For stock images, use user meta
+        $stock_projects = get_user_meta($user_id, 'fastmedia_stock_projects', true);
+        $stock_projects = is_array($stock_projects) ? $stock_projects : [];
+        $item_projects = isset($stock_projects[$clean_id]) ? $stock_projects[$clean_id] : [];
+    }
     
     // Get the last selected project for this user
     $last_selected = get_user_meta($user_id, 'fastmedia_last_project', true) ?: 'Default';
 
     ob_start();
     ?>
-    <div class="fastmedia-project-toggle" data-attachment-id="<?= esc_attr($attachment_id) ?>">
+    <div class="fastmedia-project-toggle" data-item-id="<?= esc_attr($clean_id) ?>" data-source="<?= esc_attr($source) ?>">
         <div class="project-toggle-row">
-            <button type="button" class="toggle-btn <?= !empty($attachment_projects) ? 'active' : '' ?>" 
-                    title="<?= !empty($attachment_projects) ? 'Remove from project' : 'Add to project' ?>">
-                <span class="toggle-text"><?= !empty($attachment_projects) ? '➖' : '➕' ?></span>
+            <button type="button" class="toggle-btn <?= !empty($item_projects) ? 'active' : '' ?>" 
+                    title="<?= !empty($item_projects) ? 'Remove from project' : 'Add to project' ?>">
+                <span class="toggle-text"><?= !empty($item_projects) ? '➖' : '➕' ?></span>
             </button>
             <select class="project-picker">
                 <?php foreach ($user_projects as $project): ?>
                     <option value="<?= esc_attr($project) ?>" 
-                            <?= selected(in_array($project, $attachment_projects) ? $project : $last_selected, $project) ?>>
+                            <?= selected(in_array($project, $item_projects) ? $project : $last_selected, $project) ?>>
                         <?= esc_html($project) ?>
                     </option>
                 <?php endforeach; ?>
@@ -83,21 +101,22 @@ function fastmedia_project_toggle_ui($attachment_id) {
     <script>
     (function() {
         document.addEventListener('DOMContentLoaded', function() {
-            const widget = document.querySelector('.fastmedia-project-toggle[data-attachment-id="<?= $attachment_id ?>"]');
+            const widget = document.querySelector('.fastmedia-project-toggle[data-item-id="<?= $clean_id ?>"][data-source="<?= $source ?>"]');
             if (!widget || widget.dataset.initialized) return;
             widget.dataset.initialized = 'true';
             
-            const attachmentId = widget.dataset.attachmentId;
+            const itemId = widget.dataset.itemId;
+            const source = widget.dataset.source;
             const toggleBtn = widget.querySelector('.toggle-btn');
             const toggleText = widget.querySelector('.toggle-text');
             const projectPicker = widget.querySelector('.project-picker');
             
             // Get initial projects from PHP
-            let attachmentProjects = <?= json_encode($attachment_projects) ?>;
+            let itemProjects = <?= json_encode($item_projects) ?>;
             
             function updateUI() {
                 const currentProject = projectPicker.value;
-                const isInProject = attachmentProjects.includes(currentProject);
+                const isInProject = itemProjects.includes(currentProject);
                 
                 toggleBtn.classList.toggle('active', isInProject);
                 toggleText.textContent = isInProject ? '➖' : '➕';
@@ -113,7 +132,7 @@ function fastmedia_project_toggle_ui($attachment_id) {
                     return;
                 }
                 
-                const isInProject = attachmentProjects.includes(project);
+                const isInProject = itemProjects.includes(project);
                 const action = isInProject ? 'remove' : 'add';
                 
                 // Disable button during request
@@ -123,10 +142,11 @@ function fastmedia_project_toggle_ui($attachment_id) {
                 // Send AJAX request
                 const formData = new FormData();
                 formData.append('action', 'fastmedia_toggle_project');
-                formData.append('attachment_id', attachmentId);
+                formData.append('item_id', itemId);
+                formData.append('source', source);
                 formData.append('project', project);
                 formData.append('toggle_action', action);
-                formData.append('nonce', '<?= wp_create_nonce("fastmedia_project_nonce") ?>');
+                formData.append('nonce', window.fastmedia_nonce || '<?= wp_create_nonce("fastmedia_project_nonce") ?>');
                 
                 fetch('<?= admin_url("admin-ajax.php") ?>', {
                     method: 'POST',
@@ -137,11 +157,11 @@ function fastmedia_project_toggle_ui($attachment_id) {
                 .then(data => {
                     if (data.success) {
                         if (action === 'add') {
-                            if (!attachmentProjects.includes(project)) {
-                                attachmentProjects.push(project);
+                            if (!itemProjects.includes(project)) {
+                                itemProjects.push(project);
                             }
                         } else {
-                            attachmentProjects = attachmentProjects.filter(p => p !== project);
+                            itemProjects = itemProjects.filter(p => p !== project);
                         }
                         updateUI();
                     } else {
@@ -166,7 +186,7 @@ function fastmedia_project_toggle_ui($attachment_id) {
                         const formData = new FormData();
                         formData.append('action', 'fastmedia_create_project');
                         formData.append('project_name', newProject.trim());
-                        formData.append('nonce', '<?= wp_create_nonce("fastmedia_project_nonce") ?>');
+                        formData.append('nonce', window.fastmedia_nonce || '<?= wp_create_nonce("fastmedia_project_nonce") ?>');
                         
                         fetch('<?= admin_url("admin-ajax.php") ?>', {
                             method: 'POST',
@@ -196,7 +216,7 @@ function fastmedia_project_toggle_ui($attachment_id) {
                     const formData = new FormData();
                     formData.append('action', 'fastmedia_save_last_project');
                     formData.append('project', projectPicker.value);
-                    formData.append('nonce', '<?= wp_create_nonce("fastmedia_project_nonce") ?>');
+                    formData.append('nonce', window.fastmedia_nonce || '<?= wp_create_nonce("fastmedia_project_nonce") ?>');
                     
                     fetch('<?= admin_url("admin-ajax.php") ?>', {
                         method: 'POST',
@@ -217,55 +237,91 @@ function fastmedia_project_toggle_ui($attachment_id) {
     return ob_get_clean();
 }
 
-// AJAX handler for toggling project
+// AJAX handler for toggling project - now handles both stock and uploaded
 add_action('wp_ajax_fastmedia_toggle_project', function() {
     // Verify nonce
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
         wp_send_json_error('Security check failed');
     }
     
-    $attachment_id = intval($_POST['attachment_id']);
+    $item_id = sanitize_text_field($_POST['item_id']);
+    $source = sanitize_text_field($_POST['source']);
     $project = sanitize_text_field($_POST['project']);
     $action = sanitize_text_field($_POST['toggle_action']);
     $user_id = get_current_user_id();
     
-    // Verify user owns this attachment
-    if (get_post_field('post_author', $attachment_id) != $user_id) {
-        wp_send_json_error('Permission denied');
-    }
-    
-    // Get current projects using post meta (not ACF)
-    $projects = get_post_meta($attachment_id, 'fastmedia_projects', true);
-    $projects = is_array($projects) ? $projects : [];
-    
-    if ($action === 'add') {
-        if (!in_array($project, $projects)) {
-            $projects[] = $project;
+    if ($source === 'UP') {
+        // Handle uploaded images
+        $attachment_id = intval($item_id);
+        
+        // Verify user owns this attachment
+        if (get_post_field('post_author', $attachment_id) != $user_id) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        // Get current projects using post meta
+        $projects = get_post_meta($attachment_id, 'fastmedia_projects', true);
+        $projects = is_array($projects) ? $projects : [];
+        
+        if ($action === 'add') {
+            if (!in_array($project, $projects)) {
+                $projects[] = $project;
+                update_post_meta($attachment_id, 'fastmedia_projects', $projects);
+                
+                // Log activity
+                $activity_log = get_post_meta($attachment_id, 'fastmedia_activity_log', true) ?: [];
+                $user_info = get_userdata($user_id);
+                $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' added to project: ' . $project;
+                update_post_meta($attachment_id, 'fastmedia_activity_log', array_slice($activity_log, -50));
+            }
+        } else {
+            $projects = array_values(array_filter($projects, function($p) use ($project) {
+                return $p !== $project;
+            }));
             update_post_meta($attachment_id, 'fastmedia_projects', $projects);
             
             // Log activity
             $activity_log = get_post_meta($attachment_id, 'fastmedia_activity_log', true) ?: [];
             $user_info = get_userdata($user_id);
-            $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' added to project: ' . $project;
+            $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' removed from project: ' . $project;
             update_post_meta($attachment_id, 'fastmedia_activity_log', array_slice($activity_log, -50));
         }
-    } else {
-        $projects = array_values(array_filter($projects, function($p) use ($project) {
-            return $p !== $project;
-        }));
-        update_post_meta($attachment_id, 'fastmedia_projects', $projects);
         
-        // Log activity
-        $activity_log = get_post_meta($attachment_id, 'fastmedia_activity_log', true) ?: [];
-        $user_info = get_userdata($user_id);
-        $activity_log[] = date('Y-m-d H:i') . ' - ' . $user_info->display_name . ' removed from project: ' . $project;
-        update_post_meta($attachment_id, 'fastmedia_activity_log', array_slice($activity_log, -50));
+        wp_send_json_success(['projects' => $projects]);
+        
+    } else {
+        // Handle stock images - store in user meta
+        $stock_projects = get_user_meta($user_id, 'fastmedia_stock_projects', true);
+        $stock_projects = is_array($stock_projects) ? $stock_projects : [];
+        
+        // Initialize array for this stock ID if needed
+        if (!isset($stock_projects[$item_id])) {
+            $stock_projects[$item_id] = [];
+        }
+        
+        if ($action === 'add') {
+            if (!in_array($project, $stock_projects[$item_id])) {
+                $stock_projects[$item_id][] = $project;
+                update_user_meta($user_id, 'fastmedia_stock_projects', $stock_projects);
+            }
+        } else {
+            $stock_projects[$item_id] = array_values(array_filter($stock_projects[$item_id], function($p) use ($project) {
+                return $p !== $project;
+            }));
+            
+            // Remove the stock ID entry if no projects left
+            if (empty($stock_projects[$item_id])) {
+                unset($stock_projects[$item_id]);
+            }
+            
+            update_user_meta($user_id, 'fastmedia_stock_projects', $stock_projects);
+        }
+        
+        wp_send_json_success(['projects' => $stock_projects[$item_id] ?? []]);
     }
-    
-    wp_send_json_success(['projects' => $projects]);
 });
 
-// AJAX handler for creating new project
+// AJAX handler for creating new project - unchanged
 add_action('wp_ajax_fastmedia_create_project', function() {
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
         wp_send_json_error('Security check failed');
@@ -292,7 +348,7 @@ add_action('wp_ajax_fastmedia_create_project', function() {
     wp_send_json_success(['project' => $project_name]);
 });
 
-// AJAX handler for saving last selected project
+// AJAX handler for saving last selected project - unchanged
 add_action('wp_ajax_fastmedia_save_last_project', function() {
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'fastmedia_project_nonce')) {
         wp_send_json_error('Security check failed');
