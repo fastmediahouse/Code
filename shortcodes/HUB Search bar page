@@ -1,0 +1,387 @@
+add_shortcode('magic_searchbar_page', function() {
+    // Fetch and sanitize input
+    $query = sanitize_text_field($_GET['q'] ?? '');
+    $category = sanitize_text_field($_GET['category'] ?? '');
+    $orientation = sanitize_text_field($_GET['orientation'] ?? '');
+    $archiveID = sanitize_text_field($_GET['archiveID'] ?? '');
+    $sort = sanitize_text_field($_GET['sort'] ?? '');
+    $modelReleased = sanitize_text_field($_GET['modelReleased'] ?? '');
+    $colorMode = sanitize_text_field($_GET['colorMode'] ?? '');
+    $dateFrom = sanitize_text_field($_GET['dateFrom'] ?? '');
+    $dateTo = sanitize_text_field($_GET['dateTo'] ?? '');
+
+    // Determine source based on current page
+    $current_url = esc_url($_SERVER['REQUEST_URI']);
+    $source = 'ALL'; // Default fallback
+    
+    if (strpos($current_url, '/my-assets/') !== false) {
+        $source = 'MYASSETS';
+    } elseif (strpos($current_url, '/brand/') !== false) {
+        $source = 'BRAND';
+    } elseif (strpos($current_url, '/uploaded/') !== false) {
+        $source = 'UPLOADED';
+    } elseif (strpos($current_url, '/licensed/') !== false) {
+        $source = 'LI';
+    } elseif (strpos($current_url, '/project-view/') !== false) {
+        $source = 'PROJECTS';
+    }
+
+    // Get collections
+    $webID = '57';
+    $collections = get_transient('solwee_collections');
+    if (!$collections) {
+        $response = wp_remote_get('https://api.solwee.com/api/v2/list/collections', [
+            'headers' => ['Content-Type' => 'application/json', 'X-WebID' => $webID],
+            'timeout' => 10,
+        ]);
+        if (!is_wp_error($response)) {
+            $collections = json_decode(wp_remote_retrieve_body($response), true);
+            if (is_array($collections)) {
+                set_transient('solwee_collections', $collections, DAY_IN_SECONDS);
+            }
+        }
+    }
+
+    ob_start();
+    ?>
+    <form method="GET" action="" id="magic-search-page-form"
+        style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px; align-items:center; justify-content:center;">
+
+        <input type="text" name="q" id="magic-search-input" placeholder="Search within this section..." value="<?= esc_attr($query) ?>"
+            style="flex-grow:1; min-width:260px; padding:12px 14px; font-size:16px; border:2px solid #ccc; border-radius:6px;" />
+
+        <!-- Hidden source field - automatically set based on page -->
+        <input type="hidden" name="source" value="<?= esc_attr($source) ?>" />
+
+        <button type="submit" class="magic-button magic-button-primary">
+            Search
+        </button>
+
+        <button type="button" onclick="document.getElementById('magic-page-filters').classList.toggle('visible')" class="magic-button magic-button-secondary">
+            ⚙️ Filters
+        </button>
+        
+        <?php if (!empty($query) || !empty($category) || !empty($orientation) || !empty($archiveID) || !empty($sort) || !empty($modelReleased) || !empty($colorMode) || !empty($dateFrom) || !empty($dateTo)) : ?>
+        <a href="<?= esc_url(strtok($_SERVER['REQUEST_URI'], '?')) ?>" class="magic-button magic-button-secondary" style="text-decoration: none;">
+            ✕ Clear
+        </a>
+        <?php endif; ?>
+
+        <button type="submit" class="magic-button magic-button-primary">
+            Search
+        </button>
+
+        <button type="button" onclick="document.getElementById('magic-page-filters').classList.toggle('visible')" class="magic-button magic-button-secondary">
+            ⚙️ Filters
+        </button>
+
+        <!-- FILTER PANEL -->
+        <div id="magic-page-filters" class="magic-filters <?= (!empty($orientation) || !empty($archiveID) || !empty($sort) || !empty($modelReleased) || !empty($colorMode) || !empty($dateFrom) || !empty($dateTo) || !empty($category)) ? 'visible' : '' ?>" style="display:none; width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:6px; background:#f9f9f9; margin-top:10px;">
+            <div style="display:flex; flex-wrap:wrap; gap:15px; justify-content:center;">
+
+                <label for="category" style="font-size:14px; align-self:center;">Content type:</label>
+                <select name="category" id="category" class="magic-filter-select" style="padding:8px 12px; font-size:14px; border:1px solid #ccc; border-radius:4px;">
+                    <option value="">All</option>
+                    <option value="creative" <?= selected($category, 'creative', false) ?>>Creative</option>
+                    <option value="editorial" <?= selected($category, 'editorial', false) ?>>Editorial</option>
+                </select>
+
+                <select name="orientation" id="orientation" class="magic-filter-select" style="padding:8px 12px; font-size:14px; border-radius:4px;">
+                    <option value="">Orientation</option>
+                    <option value="horizontal" <?= selected($orientation, 'horizontal', false) ?>>Horizontal</option>
+                    <option value="vertical" <?= selected($orientation, 'vertical', false) ?>>Vertical</option>
+                    <option value="square" <?= selected($orientation, 'square', false) ?>>Square</option>
+                </select>
+
+                <select name="archiveID" id="archiveID" class="magic-filter-select" style="padding:8px 12px; font-size:14px; border-radius:4px;">
+                    <option value="">Collection</option>
+                    <?php if (is_array($collections)) : foreach ($collections as $col) : ?>
+                        <option value="<?= esc_attr($col['collectionID']) ?>" <?= selected($archiveID, $col['collectionID'], false) ?>>
+                            <?= esc_html($col['label']) ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+
+                <select name="sort" id="sort" class="magic-filter-select" style="padding:8px 12px; font-size:14px; border-radius:4px;">
+                    <option value="">Sort By</option>
+                    <option value="newest" <?= selected($sort, 'newest', false) ?>>Newest</option>
+                    <option value="oldest" <?= selected($sort, 'oldest', false) ?>>Oldest</option>
+                    <option value="relevant" <?= selected($sort, 'relevant', false) ?>>Most Relevant</option>
+                </select>
+
+                <select name="modelReleased" id="modelReleased" class="magic-filter-select" style="padding:8px 12px; font-size:14px; border-radius:4px;">
+                    <option value="">Model Released</option>
+                    <option value="true" <?= selected($modelReleased, 'true', false) ?>>Yes</option>
+                    <option value="false" <?= selected($modelReleased, 'false', false) ?>>No</option>
+                </select>
+
+                <select name="colorMode" id="colorMode" class="magic-filter-select" style="padding:8px 12px; font-size:14px; border-radius:4px;">
+                    <option value="">Color Mode</option>
+                    <option value="color" <?= selected($colorMode, 'color', false) ?>>Color</option>
+                    <option value="bw" <?= selected($colorMode, 'bw', false) ?>>Black & White</option>
+                </select>
+
+                <select name="dateFrom" id="dateFrom" class="magic-filter-select" style="padding:8px 12px; font-size:14px; border-radius:4px;">
+                    <option value="">From Year</option>
+                    <?php for ($y = date('Y'); $y >= 1990; $y--) : ?>
+                        <option value="<?= $y ?>" <?= selected($dateFrom, (string)$y, false) ?>><?= $y ?></option>
+                    <?php endfor; ?>
+                </select>
+
+                <select name="dateTo" id="dateTo" class="magic-filter-select" style="padding:8px 12px; font-size:14px; border-radius:4px;">
+                    <option value="">To Year</option>
+                    <?php for ($y = date('Y'); $y >= 1990; $y--) : ?>
+                        <option value="<?= $y ?>" <?= selected($dateTo, (string)$y, false) ?>><?= $y ?></option>
+                    <?php endfor; ?>
+                </select>
+            </div>
+        </div>
+    </form>
+
+    <!-- Message for no results -->
+    <div id="no-results-message" style="display:none; text-align:center; padding:40px; color:#666;">
+        <h3>No assets found matching your search criteria</h3>
+        <p>Try adjusting your filters or search terms</p>
+    </div>
+
+    <style>
+    #magic-page-filters.visible { display: block !important; }
+    
+    /* Base button styles with proper alignment */
+    .magic-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 20px;
+        height: 44px;
+        font-size: 15px;
+        font-weight: 500;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        gap: 6px;
+    }
+    
+    .magic-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    
+    .magic-button:active {
+        transform: translateY(0);
+    }
+    
+    /* Button variants */
+    .magic-button-primary {
+        background: #111;
+        color: #fff;
+        min-width: 100px;
+    }
+    
+    .magic-button-primary:hover {
+        background: #333;
+    }
+    
+    .magic-button-secondary {
+        background: #fff;
+        color: #111;
+        border: 1px solid #ddd;
+    }
+    
+    .magic-button-secondary:hover {
+        background: #f8f8f8;
+        border-color: #bbb;
+    }
+    
+    /* Hidden asset style */
+    .asset-hidden {
+        display: none !important;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        #magic-search-page-form {
+            gap: 10px;
+        }
+        
+        .magic-button {
+            height: 40px;
+            font-size: 14px;
+            padding: 0 16px;
+        }
+    }
+    </style>
+
+    <script>
+    jQuery(document).ready(function($) {
+        let filterTimeout;
+        
+        // Function to filter assets on the page
+        function filterAssets() {
+            const searchQuery = $('#magic-search-input').val().toLowerCase();
+            const category = $('#category').val();
+            const orientation = $('#orientation').val();
+            const archiveID = $('#archiveID').val();
+            const modelReleased = $('#modelReleased').val();
+            const colorMode = $('#colorMode').val();
+            const dateFrom = $('#dateFrom').val();
+            const dateTo = $('#dateTo').val();
+            
+            let visibleCount = 0;
+            
+            // Find all asset items on the page - adjust these selectors based on your actual asset HTML structure
+            $('.asset-item, .media-item, .portfolio-item, [data-asset-id]').each(function() {
+                const $asset = $(this);
+                let shouldShow = true;
+                
+                // Search in title, description, tags, etc.
+                if (searchQuery) {
+                    const assetText = $asset.find('.asset-title, .asset-description, .asset-tags, h3, h4, p').text().toLowerCase();
+                    const assetAlt = $asset.find('img').attr('alt') || '';
+                    const assetTitle = $asset.find('img').attr('title') || '';
+                    
+                    if (!assetText.includes(searchQuery) && 
+                        !assetAlt.toLowerCase().includes(searchQuery) && 
+                        !assetTitle.toLowerCase().includes(searchQuery)) {
+                        shouldShow = false;
+                    }
+                }
+                
+                // Filter by category
+                if (category && shouldShow) {
+                    const assetCategory = $asset.data('category') || $asset.attr('data-content-type') || '';
+                    if (assetCategory.toLowerCase() !== category.toLowerCase()) {
+                        shouldShow = false;
+                    }
+                }
+                
+                // Filter by orientation
+                if (orientation && shouldShow) {
+                    const assetOrientation = $asset.data('orientation') || '';
+                    if (assetOrientation.toLowerCase() !== orientation.toLowerCase()) {
+                        shouldShow = false;
+                    }
+                }
+                
+                // Filter by collection/archive
+                if (archiveID && shouldShow) {
+                    const assetArchive = $asset.data('archive-id') || $asset.data('collection-id') || '';
+                    if (assetArchive != archiveID) {
+                        shouldShow = false;
+                    }
+                }
+                
+                // Filter by model released
+                if (modelReleased && shouldShow) {
+                    const assetModelReleased = $asset.data('model-released') || '';
+                    if (assetModelReleased.toString().toLowerCase() !== modelReleased.toLowerCase()) {
+                        shouldShow = false;
+                    }
+                }
+                
+                // Filter by color mode
+                if (colorMode && shouldShow) {
+                    const assetColorMode = $asset.data('color-mode') || '';
+                    if (assetColorMode.toLowerCase() !== colorMode.toLowerCase()) {
+                        shouldShow = false;
+                    }
+                }
+                
+                // Filter by date range
+                if ((dateFrom || dateTo) && shouldShow) {
+                    const assetYear = parseInt($asset.data('year') || $asset.data('date') || '0');
+                    if (dateFrom && assetYear < parseInt(dateFrom)) {
+                        shouldShow = false;
+                    }
+                    if (dateTo && assetYear > parseInt(dateTo)) {
+                        shouldShow = false;
+                    }
+                }
+                
+                // Show or hide the asset
+                if (shouldShow) {
+                    $asset.removeClass('asset-hidden').fadeIn(200);
+                    visibleCount++;
+                } else {
+                    $asset.addClass('asset-hidden').fadeOut(200);
+                }
+            });
+            
+            // Show/hide no results message
+            if (visibleCount === 0) {
+                $('#no-results-message').fadeIn();
+            } else {
+                $('#no-results-message').fadeOut();
+            }
+            
+            // Update URL without page reload
+            const params = new URLSearchParams(window.location.search);
+            if (searchQuery) params.set('q', searchQuery);
+            else params.delete('q');
+            
+            $('.magic-filter-select').each(function() {
+                const name = $(this).attr('name');
+                const value = $(this).val();
+                if (value) params.set(name, value);
+                else params.delete(name);
+            });
+            
+            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.history.replaceState({}, '', newUrl);
+        }
+        
+        // Handle form submission
+        $('#magic-search-page-form').on('submit', function(e) {
+            e.preventDefault();
+            
+            // If there are search parameters, we need to reload the page to search across all pages
+            const hasSearchParams = $('#magic-search-input').val() || 
+                                  $('.magic-filter-select').filter(function() { return $(this).val(); }).length > 0;
+            
+            if (hasSearchParams) {
+                // Submit the form normally to reload with search params
+                // This allows the server to filter across all paginated results
+                this.submit();
+            } else {
+                // If clearing search, just filter current page
+                filterAssets();
+            }
+        });
+        
+        // Handle search input with debouncing (client-side preview)
+        $('#magic-search-input').on('input', function() {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(filterAssets, 300);
+        });
+        
+        // Handle filter changes
+        $('.magic-filter-select').on('change', function() {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(function() {
+                // For filters, submit form to search across all pages
+                $('#magic-search-page-form').submit();
+            }, 500);
+        });
+        
+        // Run initial filter if there are parameters
+        if (window.location.search) {
+            filterAssets();
+        }
+        
+        // Handle pagination links to maintain search parameters
+        $(document).on('click', '.pagination a, .page-numbers', function(e) {
+            const href = $(this).attr('href');
+            if (href && window.location.search) {
+                e.preventDefault();
+                // Append current search params to pagination link
+                const separator = href.includes('?') ? '&' : '?';
+                window.location.href = href + separator + window.location.search.substring(1);
+            }
+        });
+    });
+    </script>
+    <?php
+    return ob_get_clean();
+});
