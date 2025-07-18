@@ -50,7 +50,7 @@ add_shortcode('magic_searchbar', function() {
 
         <!-- Asset Type Button -->
         <button type="button" onclick="toggleAssetTypeMenu()" class="magic-button magic-button-accent">
-            <span class="button-icon">📁</span> Asset Type
+            Asset Type
         </button>
 
         <!-- Info Button -->
@@ -290,12 +290,12 @@ add_shortcode('magic_searchbar', function() {
         }
         
         .magic-button-accent {
-            background: #007BFF;
+            background: #28a745;
             color: #fff;
         }
         
         .magic-button-accent:hover {
-            background: #0056b3;
+            background: #218838;
         }
         
         .magic-button-info {
