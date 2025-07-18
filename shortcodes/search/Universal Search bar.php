@@ -1,204 +1,461 @@
-// ✅ MAGIC SEARCH BAR SHORTCODE – Projects Integration with Full Filters and Correct Conditional Routing
-
 add_shortcode('magic_searchbar', function() {
-    $query         = sanitize_text_field($_GET['q'] ?? '');
-    $category      = sanitize_text_field($_GET['category'] ?? '');
-    $source        = sanitize_text_field($_GET['source'] ?? 'ALL');
-    $project       = sanitize_text_field($_GET['project'] ?? '');
-    $orientation   = sanitize_text_field($_GET['orientation'] ?? '');
-    $archiveID     = sanitize_text_field($_GET['archiveID'] ?? '');
-    $sort          = sanitize_text_field($_GET['sort'] ?? '');
+    // Fetch and sanitize input
+    $query = sanitize_text_field($_GET['q'] ?? '');
+    $source = sanitize_text_field($_GET['source'] ?? 'ALL');
+    $project = sanitize_text_field($_GET['project'] ?? '');
+    $orientation = sanitize_text_field($_GET['orientation'] ?? '');
+    $archiveID = sanitize_text_field($_GET['archiveID'] ?? '');
+    $sort = sanitize_text_field($_GET['sort'] ?? '');
     $modelReleased = sanitize_text_field($_GET['modelReleased'] ?? '');
-    $colorMode     = sanitize_text_field($_GET['colorMode'] ?? '');
-    $dateFrom      = sanitize_text_field($_GET['dateFrom'] ?? '');
-    $dateTo        = sanitize_text_field($_GET['dateTo'] ?? '');
+    $colorMode = sanitize_text_field($_GET['colorMode'] ?? '');
+    $dateFrom = sanitize_text_field($_GET['dateFrom'] ?? '');
+    $dateTo = sanitize_text_field($_GET['dateTo'] ?? '');
+    $category = sanitize_text_field($_GET['category'] ?? '');
 
-    $webID = '57';
-    $collections = get_transient('solwee_collections');
-    if (!$collections) {
-        $response = wp_remote_get('https://api.solwee.com/api/v2/list/collections', [
-            'headers' => ['Content-Type' => 'application/json', 'X-WebID' => $webID],
-            'timeout' => 10,
-        ]);
-        if (!is_wp_error($response)) {
-            $collections = json_decode(wp_remote_retrieve_body($response), true);
-            if (is_array($collections)) {
-                set_transient('solwee_collections', $collections, DAY_IN_SECONDS);
-            }
+    // Page URL context-based behavior (default to page-specific source)
+    $current_url = esc_url($_SERVER['REQUEST_URI']);
+    if (empty($_GET['source'])) { // Only set default if no source is explicitly selected
+        if (strpos($current_url, '/my-assets/') !== false) {
+            $source = 'MYASSETS';
+        } elseif (strpos($current_url, '/brand/') !== false) {
+            $source = 'BRAND';
+        } elseif (strpos($current_url, '/uploaded/') !== false) {
+            $source = 'UPLOADED';
+        } elseif (strpos($current_url, '/licensed/') !== false) {
+            $source = 'LICENSED';
+        } elseif (strpos($current_url, '/project-view/') !== false) {
+            $source = 'PROJECTS';
         }
     }
 
-    $current_url = esc_url($_SERVER['REQUEST_URI']);
-    $is_local = (strpos($current_url, '/my-assets/') !== false ||
-                 strpos($current_url, '/brand/') !== false ||
-                 strpos($current_url, '/uploaded/') !== false ||
-                 strpos($current_url, '/licensed/') !== false ||
-                 strpos($current_url, '/project-view/') !== false);
-
-    $action_url = $is_local ? $current_url : '/magic-search-results/';
+    // Collections (placeholder - replace with your actual collections data)
+    $collections = []; // Your collections array here
 
     ob_start();
     ?>
-    <form method="GET" action="<?= esc_url($action_url) ?>" id="magic-search-form"
-        style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px; align-items:center; justify-content:center;">
+    <form method="GET" action="<?= esc_url($_SERVER['REQUEST_URI']) ?>" id="magic-search-form" style="display:flex; flex-wrap:wrap; gap:15px; margin-bottom:20px; align-items:center; justify-content:flex-start;">
+        <!-- Search bar -->
+        <input type="text" name="q" placeholder="Search..." value="<?= esc_attr($query) ?>" style="flex-grow:1; min-width:260px; padding:12px 14px; font-size:16px; border:2px solid #ccc; border-radius:6px;" />
 
-        <input type="text" name="q" placeholder="Search Creative, Editorial, or Uploaded..." value="<?= esc_attr($query) ?>"
-            style="flex-grow:1; min-width:260px; padding:12px 14px; font-size:16px; border:2px solid #ccc; border-radius:6px;" />
-
+        <!-- Hidden source field -->
         <input type="hidden" name="source" id="magic-source-field" value="<?= esc_attr($source) ?>" />
 
-        <button type="submit" style="padding:12px 20px; font-size:16px; background:#111; color:#fff; border:none; border-radius:6px; cursor:pointer;">
-            Search
+        <!-- Search button -->
+        <button type="submit" class="magic-button magic-button-primary">Search</button>
+
+        <!-- Filters Button -->
+        <button type="button" onclick="toggleFilters()" class="magic-button magic-button-secondary">
+            <span class="button-icon">⚙️</span> Filters
         </button>
 
-        <button type="button" onclick="document.getElementById('magic-filters').classList.toggle('visible')" style="padding:12px 14px; font-size:15px; border:1px solid #ccc; border-radius:6px; background:#fff; color:#111; cursor:pointer;">
-            Filters
+        <!-- Asset Type Button -->
+        <button type="button" onclick="toggleAssetTypeMenu()" class="magic-button magic-button-accent">
+            <span class="button-icon">📁</span> Asset Type
         </button>
 
-        <button type="button" onclick="document.getElementById('magic-sources').classList.toggle('visible')" style="padding:12px 14px; font-size:15px; border-radius:6px; border:none; background:#007BFF; color:#fff; cursor:pointer;">
-            Asset Type
+        <!-- Info Button -->
+        <button type="button" onclick="toggleSearchTips()" class="magic-button magic-button-info" title="Search Tips">
+            ℹ️
         </button>
+    </form>
 
-        <div id="magic-sources" class="magic-sources" style="width:100%; text-align:center; margin-top:15px; display:none;">
-            <?php
-            $sources = [
-                'ALL'       => ['label' => 'All', 'desc' => 'Search all sources together'],
-                'STOCK'     => ['label' => 'Stock', 'desc' => 'Commercial and editorial stock photos'],
-                'PROJECTS'  => ['label' => 'Projects', 'desc' => 'Images in your selected or active project'],
-                'LI'        => ['label' => 'Licensed', 'desc' => 'Images you have already licensed'],
-                'UPLOADED'  => ['label' => 'Uploaded', 'desc' => 'Assets you or your team uploaded'],
-                'CP'        => ['label' => 'Comps (Preview)', 'desc' => 'Watermarked comps downloaded for layout use'],
-                'MYASSETS'  => ['label' => 'My Assets', 'desc' => 'All of your assets across uploads and licensed'],
-                'BRAND'     => ['label' => 'Brand', 'desc' => 'Brand kit or identity-specific images']
-            ];
-            foreach ($sources as $key => $meta) {
-                $is_active = strpos($source, $key) !== false;
-                echo "<button type='button' class='magic-source-btn' data-value='{$key}' title='{$meta['desc']}' style='margin:4px;padding:6px 12px;font-weight:500;border-radius:5px;border:1px solid #ccc;background:" . ($is_active ? '#111' : '#fff') . ";color:" . ($is_active ? '#fff' : '#111') . ";'>{$meta['label']}</button> ";
-            }
-            ?>
-        </div>
-
-        <?php if (strpos($source, 'PROJECTS') !== false) :
-            $user_id = get_current_user_id();
-            $user_projects = get_user_meta($user_id, 'fastmedia_user_projects', true);
-            $user_projects = is_array($user_projects) ? $user_projects : ['Default'];
+    <!-- Asset Type Menu -->
+    <div id="magic-sources" class="magic-sources" style="display:none;">
+        <?php
+        $sources = [
+            'ALL'       => ['label' => 'All', 'desc' => 'Search all sources together'],
+            'STOCK'     => ['label' => 'Stock', 'desc' => 'Commercial and editorial stock photos'],
+            'PROJECTS'  => ['label' => 'Projects', 'desc' => 'Images in your selected or active project'],
+            'LICENSED'  => ['label' => 'Licensed', 'desc' => 'Images you have already licensed'],
+            'UPLOADED'  => ['label' => 'Uploaded', 'desc' => 'Assets you or your team uploaded'],
+            'COMPS'     => ['label' => 'Comps (Preview)', 'desc' => 'Watermarked comps downloaded for layout use'],
+            'MYASSETS'  => ['label' => 'My Assets', 'desc' => 'All of your assets across uploads and licensed'],
+            'BRAND'     => ['label' => 'Brand', 'desc' => 'Brand kit or identity-specific images']
+        ];
+        
+        $selected_sources = explode(',', $source);
+        
+        foreach ($sources as $key => $meta):
+            $is_active = in_array($key, $selected_sources);
         ?>
-        <select name="project" id="project-selector" style="min-width:220px; padding:8px 12px; font-size:14px; border-radius:4px;">
-            <?php foreach ($user_projects as $proj): ?>
-                <option value="<?= esc_attr($proj) ?>" <?= selected($proj, $project, false) ?>>
-                    <?= esc_html($proj) ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-        <?php endif; ?>
+            <button type="button" 
+                    class="magic-source-btn <?= $is_active ? 'active' : '' ?>" 
+                    data-value="<?= $key ?>" 
+                    title="<?= esc_attr($meta['desc']) ?>" 
+                    onclick="toggleAssetType('<?= $key ?>')">
+                <?= esc_html($meta['label']) ?>
+            </button>
+        <?php endforeach; ?>
+    </div>
 
-        <div id="magic-filters" class="magic-filters <?= (!empty($orientation) || !empty($archiveID) || !empty($sort) || !empty($modelReleased) || !empty($colorMode) || !empty($dateFrom) || !empty($dateTo) || !empty($category)) ? 'visible' : '' ?>" style="display:none; width:100%; padding:10px 15px; border:1px solid #ccc; border-radius:6px; background:#f9f9f9; margin-top:10px;">
-            <div style="display:flex; flex-wrap:wrap; gap:15px; justify-content:center;">
-                <label for="category" style="font-size:14px; align-self:center;">Content type:</label>
-                <select name="category" id="category" style="padding:8px 12px; font-size:14px; border:1px solid #ccc; border-radius:4px;">
-                    <option value="">All</option>
-                    <option value="creative" <?= selected($category, 'creative', false) ?>>Creative</option>
-                    <option value="editorial" <?= selected($category, 'editorial', false) ?>>Editorial</option>
-                </select>
+    <!-- Filters Menu -->
+    <div id="magic-filters" class="magic-filters" style="display:none;">
+        <div class="filters-grid">
+            <!-- Category Filter -->
+            <select name="category" class="magic-filter-select">
+                <option value="">Category</option>
+                <option value="creative" <?= selected($category, 'creative', false) ?>>Creative</option>
+                <option value="editorial" <?= selected($category, 'editorial', false) ?>>Editorial</option>
+            </select>
 
-                <select name="orientation" class="magic-autosubmit" style="padding:8px; min-width:140px;">
-                    <option value="">Orientation</option>
-                    <option value="horizontal" <?= selected($orientation, 'horizontal', false) ?>>Horizontal</option>
-                    <option value="vertical" <?= selected($orientation, 'vertical', false) ?>>Vertical</option>
-                    <option value="square" <?= selected($orientation, 'square', false) ?>>Square</option>
-                </select>
+            <!-- Orientation Filter -->
+            <select name="orientation" class="magic-filter-select">
+                <option value="">Orientation</option>
+                <option value="horizontal" <?= selected($orientation, 'horizontal', false) ?>>Horizontal</option>
+                <option value="vertical" <?= selected($orientation, 'vertical', false) ?>>Vertical</option>
+                <option value="square" <?= selected($orientation, 'square', false) ?>>Square</option>
+            </select>
 
-                <select name="modelReleased" class="magic-autosubmit" style="padding:8px; min-width:140px;">
-                    <option value="">Model Released</option>
-                    <option value="true" <?= selected($modelReleased, 'true', false) ?>>Yes</option>
-                    <option value="false" <?= selected($modelReleased, 'false', false) ?>>No</option>
-                </select>
+            <!-- Model Released Filter -->
+            <select name="modelReleased" class="magic-filter-select">
+                <option value="">Model Released</option>
+                <option value="true" <?= selected($modelReleased, 'true', false) ?>>Yes</option>
+                <option value="false" <?= selected($modelReleased, 'false', false) ?>>No</option>
+            </select>
 
-                <select name="archiveID" class="magic-autosubmit" style="padding:8px; min-width:160px;">
-                    <option value="">Collection</option>
-                    <?php if (is_array($collections)) foreach ($collections as $col): ?>
-                        <option value="<?= esc_attr($col['id'] ?? $col['collectionID']) ?>" <?= selected($archiveID, ($col['id'] ?? $col['collectionID']), false) ?>>
+            <!-- Archive/Collection Filter -->
+            <select name="archiveID" class="magic-filter-select">
+                <option value="">Collection</option>
+                <?php if (is_array($collections)): ?>
+                    <?php foreach ($collections as $col): ?>
+                        <option value="<?= esc_attr($col['id'] ?? $col['collectionID']) ?>" 
+                                <?= selected($archiveID, ($col['id'] ?? $col['collectionID']), false) ?>>
                             <?= esc_html($col['name'] ?? $col['label']) ?>
                         </option>
                     <?php endforeach; ?>
-                </select>
+                <?php endif; ?>
+            </select>
 
-                <select name="sort" class="magic-autosubmit" style="padding:8px; min-width:140px;">
-                    <option value="">Sort by</option>
-                    <option value="newest" <?= selected($sort, 'newest', false) ?>>Newest</option>
-                    <option value="oldest" <?= selected($sort, 'oldest', false) ?>>Oldest</option>
-                    <option value="relevant" <?= selected($sort, 'relevant', false) ?>>Most Relevant</option>
-                </select>
+            <!-- Sorting Filter -->
+            <select name="sort" class="magic-filter-select">
+                <option value="">Sort by</option>
+                <option value="newest" <?= selected($sort, 'newest', false) ?>>Newest</option>
+                <option value="oldest" <?= selected($sort, 'oldest', false) ?>>Oldest</option>
+                <option value="relevant" <?= selected($sort, 'relevant', false) ?>>Most Relevant</option>
+            </select>
 
-                <select name="colorMode" class="magic-autosubmit" style="padding:8px 12px; font-size:14px; border-radius:4px;">
-                    <option value="">Color Mode</option>
-                    <option value="color" <?= selected($colorMode, 'color', false) ?>>Color</option>
-                    <option value="bw" <?= selected($colorMode, 'bw', false) ?>>Black & White</option>
-                </select>
+            <!-- Color Mode Filter -->
+            <select name="colorMode" class="magic-filter-select">
+                <option value="">Color Mode</option>
+                <option value="color" <?= selected($colorMode, 'color', false) ?>>Color</option>
+                <option value="bw" <?= selected($colorMode, 'bw', false) ?>>Black & White</option>
+            </select>
 
-                <select name="dateFrom" class="magic-autosubmit" style="padding:8px 12px; font-size:14px; border-radius:4px;">
-                    <option value="">From Year</option>
-                    <?php for ($y = date('Y'); $y >= 1990; $y--) : ?>
-                        <option value="<?= $y ?>" <?= selected($dateFrom, (string)$y, false) ?>><?= $y ?></option>
-                    <?php endfor; ?>
-                </select>
+            <!-- Date Range Filters -->
+            <select name="dateFrom" class="magic-filter-select">
+                <option value="">From Year</option>
+                <?php for ($y = date('Y'); $y >= 1990; $y--): ?>
+                    <option value="<?= $y ?>" <?= selected($dateFrom, (string)$y, false) ?>><?= $y ?></option>
+                <?php endfor; ?>
+            </select>
 
-                <select name="dateTo" class="magic-autosubmit" style="padding:8px 12px; font-size:14px; border-radius:4px;">
-                    <option value="">To Year</option>
-                    <?php for ($y = date('Y'); $y >= 1990; $y--) : ?>
-                        <option value="<?= $y ?>" <?= selected($dateTo, (string)$y, false) ?>><?= $y ?></option>
-                    <?php endfor; ?>
-                </select>
-            </div>
+            <select name="dateTo" class="magic-filter-select">
+                <option value="">To Year</option>
+                <?php for ($y = date('Y'); $y >= 1990; $y--): ?>
+                    <option value="<?= $y ?>" <?= selected($dateTo, (string)$y, false) ?>><?= $y ?></option>
+                <?php endfor; ?>
+            </select>
         </div>
-    </form>
+    </div>
 
-    <style>
-    #magic-sources.visible { display: block !important; }
-    .magic-filters.visible { display: block !important; }
-    .magic-source-btn.active { background: #111 !important; color: #fff !important; }
-    </style>
+    <!-- Search Tips Popup -->
+    <div id="search-tips-popup" class="search-tips-popup" style="display:none;">
+        <div class="popup-content">
+            <h3>Search Tips</h3>
+            <ul>
+                <li><strong>AND</strong>: Combine terms (e.g., <code>car AND vehicle</code>)</li>
+                <li><strong>OR</strong>: Either term (e.g., <code>car OR vehicle</code>)</li>
+                <li><strong>NOT</strong> or <strong>-</strong>: Exclude terms (e.g., <code>car NOT auto</code> or <code>car -auto</code>)</li>
+                <li><strong>"quotes"</strong>: Exact phrase (e.g., <code>"red car"</code>)</li>
+            </ul>
+            <button onclick="toggleSearchTips()" class="magic-button magic-button-primary">Close</button>
+        </div>
+    </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.magic-source-btn').forEach(btn => {
-            btn.addEventListener('click', function () {
-                const field = document.getElementById('magic-source-field');
-                let current = field.value.split(',').filter(v => v);
-                const val = this.getAttribute('data-value');
-                if (val === 'ALL') {
-                    field.value = 'ALL';
+        // Toggle Asset Type Menu visibility
+        function toggleAssetTypeMenu() {
+            const menu = document.getElementById('magic-sources');
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Toggle Search Tips popup
+        function toggleSearchTips() {
+            const popup = document.getElementById('search-tips-popup');
+            popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // Toggle Filters visibility
+        function toggleFilters() {
+            const filters = document.getElementById('magic-filters');
+            filters.style.display = filters.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Toggle asset type selection with multi-select support
+        function toggleAssetType(value) {
+            const field = document.getElementById('magic-source-field');
+            let current = field.value.split(',').filter(v => v);
+            
+            if (value === 'ALL') {
+                // Selecting ALL clears other selections
+                field.value = 'ALL';
+            } else {
+                // Remove ALL if it's selected
+                current = current.filter(v => v !== 'ALL');
+                
+                if (current.includes(value)) {
+                    // Deselect if already selected
+                    current = current.filter(v => v !== value);
                 } else {
-                    if (current.includes(val)) {
-                        current = current.filter(v => v !== val);
-                    } else {
-                        current.push(val);
-                    }
-                    field.value = current.join(',');
+                    // Add to selected
+                    current.push(value);
                 }
-                document.querySelectorAll('.magic-source-btn').forEach(b => b.classList.remove('active'));
-                field.value.split(',').forEach(v => {
-                    const match = document.querySelector(`.magic-source-btn[data-value='${v}']`);
-                    if (match) match.classList.add('active');
-                });
-            });
-        });
-
-        document.querySelectorAll('.magic-autosubmit').forEach(select => {
-            select.addEventListener('change', function () {
-                document.getElementById('magic-search-form').submit();
-            });
-        });
-
-        if (window.jQuery && jQuery().select2) {
-            jQuery('#project-selector').select2({
-                placeholder: 'Select a project',
-                allowClear: true,
-                width: 'resolve'
+                
+                // If nothing is selected, default to ALL
+                field.value = current.length > 0 ? current.join(',') : 'ALL';
+            }
+            
+            // Update button states
+            updateAssetTypeButtons();
+        }
+        
+        // Update visual state of asset type buttons
+        function updateAssetTypeButtons() {
+            const field = document.getElementById('magic-source-field');
+            const selected = field.value.split(',').filter(v => v);
+            
+            document.querySelectorAll('.magic-source-btn').forEach(btn => {
+                const value = btn.getAttribute('data-value');
+                if (selected.includes(value)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
             });
         }
-    });
+        
+        // Initialize button states on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAssetTypeButtons();
+        });
     </script>
+
+    <style>
+        /* Base button styles with proper alignment */
+        .magic-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 20px;
+            height: 44px;
+            font-size: 15px;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            gap: 6px;
+        }
+        
+        .magic-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .magic-button:active {
+            transform: translateY(0);
+        }
+        
+        /* Button variants */
+        .magic-button-primary {
+            background: #111;
+            color: #fff;
+            min-width: 100px;
+        }
+        
+        .magic-button-primary:hover {
+            background: #333;
+        }
+        
+        .magic-button-secondary {
+            background: #fff;
+            color: #111;
+            border: 1px solid #ddd;
+        }
+        
+        .magic-button-secondary:hover {
+            background: #f8f8f8;
+            border-color: #bbb;
+        }
+        
+        .magic-button-accent {
+            background: #007BFF;
+            color: #fff;
+        }
+        
+        .magic-button-accent:hover {
+            background: #0056b3;
+        }
+        
+        .magic-button-info {
+            width: 44px;
+            padding: 0;
+            background: #f1f1f1;
+            color: #007BFF;
+            font-size: 18px;
+        }
+        
+        .magic-button-info:hover {
+            background: #e8e8e8;
+        }
+        
+        /* Asset type buttons */
+        .magic-sources {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 15px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .magic-source-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 16px;
+            height: 36px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 20px;
+            border: 1px solid #ddd;
+            background: #fff;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .magic-source-btn:hover {
+            background: #f1f1f1;
+            border-color: #999;
+        }
+        
+        .magic-source-btn.active {
+            background: #111;
+            color: #fff;
+            border-color: #111;
+        }
+        
+        /* Filters section */
+        .magic-filters {
+            padding: 20px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        
+        .magic-filter-select {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+        }
+        
+        .magic-filter-select:hover {
+            border-color: #999;
+        }
+        
+        .magic-filter-select:focus {
+            outline: none;
+            border-color: #007BFF;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.1);
+        }
+        
+        /* Search tips popup */
+        .search-tips-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        
+        .popup-content {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .popup-content h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 24px;
+            color: #111;
+        }
+        
+        .popup-content ul {
+            margin: 0 0 20px 0;
+            padding-left: 20px;
+        }
+        
+        .popup-content li {
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+        
+        .popup-content code {
+            background: #f1f1f1;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            #magic-search-form {
+                gap: 10px;
+            }
+            
+            .magic-button {
+                height: 40px;
+                font-size: 14px;
+                padding: 0 16px;
+            }
+            
+            .magic-button-info {
+                width: 40px;
+            }
+            
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
     <?php
     return ob_get_clean();
 });
