@@ -1,14 +1,13 @@
 /**
- * FastMedia Enhanced Upload Panel - COMPLETE VERSION
- * All promised features included
+ * FastMedia Enhanced Upload Panel - REFINED VERSION
+ * 4-View System with cleaner layout
  */
-	
+
 add_shortcode('upload_panel', function () {
-	
     if (!is_user_logged_in()) return '<p>Please log in to upload and approve images.</p>';
     $user_id = get_current_user_id();
 
-    // ✅ Upload handler with UP label auto-assignment
+    // Upload handler with UP label auto-assignment
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_FILES['fastmedia_upload_file'])) {
         require_once ABSPATH . 'wp-admin/includes/image.php';
         require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -37,10 +36,11 @@ add_shortcode('upload_panel', function () {
         echo "<script>setTimeout(() => window.location.hash = '#upload', 200);</script>";
     }
 
-    // ✅ Bulk operations handler
+    // Bulk operations handler
     if (!empty($_POST['bulk_action']) && !empty($_POST['selected_ids'])) {
         $action = $_POST['bulk_action'];
         $ids = $_POST['selected_ids'];
+        $reason = sanitize_text_field($_POST['bulk_reject_reason'] ?? 'No reason provided');
         
         foreach ($ids as $id) {
             if (get_post_field('post_author', $id) == $user_id) {
@@ -49,10 +49,8 @@ add_shortcode('upload_panel', function () {
                         delete_post_meta($id, 'fastmedia_upload_status');
                         add_post_meta($id, 'fastmedia_activity_log', 'Bulk approved on ' . current_time('Y-m-d H:i'));
                         break;
-                    case 'save':
-                        add_post_meta($id, 'fastmedia_activity_log', 'Bulk saved on ' . current_time('Y-m-d H:i'));
-                        break;
                     case 'reject':
+                        add_post_meta($id, 'fastmedia_activity_log', 'Rejected on ' . current_time('Y-m-d H:i') . ' - Reason: ' . $reason);
                         wp_delete_attachment($id, true);
                         break;
                 }
@@ -61,14 +59,11 @@ add_shortcode('upload_panel', function () {
         echo "<script>setTimeout(() => window.location.hash = '#upload', 200);</script>";
     }
 
-    // ✅ Save + Approve logic (original)
-    if (!empty($_POST['fastmedia_approve_ids']) || !empty($_POST['fastmedia_save_ids'])) {
-        $action_type = !empty($_POST['fastmedia_approve_ids']) ? 'Approved' : 'Saved';
-        $target_ids = !empty($_POST['fastmedia_approve_ids']) ? $_POST['fastmedia_approve_ids'] : $_POST['fastmedia_save_ids'];
-
-        foreach ($target_ids as $id) {
+    // Individual approve handler
+    if (!empty($_POST['fastmedia_approve_ids'])) {
+        foreach ($_POST['fastmedia_approve_ids'] as $id) {
             if (get_post_field('post_author', $id) == $user_id) {
-                if ($action_type === 'Approved') delete_post_meta($id, 'fastmedia_upload_status');
+                delete_post_meta($id, 'fastmedia_upload_status');
 
                 if (!empty($_POST['meta'][$id])) {
                     foreach ($_POST['meta'][$id] as $key => $value) {
@@ -85,24 +80,26 @@ add_shortcode('upload_panel', function () {
                     }
                 }
 
-                add_post_meta($id, 'fastmedia_activity_log', "$action_type on " . current_time('Y-m-d H:i'));
+                add_post_meta($id, 'fastmedia_activity_log', "Approved on " . current_time('Y-m-d H:i'));
             }
         }
 
         echo "<script>setTimeout(() => window.location.hash = '#upload', 200);</script>";
     }
 
-    // ✅ Reject logic
+    // Individual reject handler with reason
     if (!empty($_POST['fastmedia_reject_ids'])) {
         foreach ($_POST['fastmedia_reject_ids'] as $id) {
             if (get_post_field('post_author', $id) == $user_id) {
+                $reason = sanitize_text_field($_POST['reject_reason_' . $id] ?? 'No reason provided');
+                add_post_meta($id, 'fastmedia_activity_log', 'Rejected on ' . current_time('Y-m-d H:i') . ' - Reason: ' . $reason);
                 wp_delete_attachment($id, true);
             }
         }
         echo "<script>setTimeout(() => window.location.hash = '#upload', 200);</script>";
     }
 
-    // ✅ Sorting implementation
+    // Sorting implementation
     $orderby = 'date';
     $order = 'DESC';
     
@@ -122,7 +119,7 @@ add_shortcode('upload_panel', function () {
         }
     }
 
-    // ✅ Load all pending uploads with sorting
+    // Load all pending uploads with sorting
     $attachments = get_posts([
         'post_type' => 'attachment',
         'post_status' => 'inherit',
@@ -157,7 +154,7 @@ add_shortcode('upload_panel', function () {
     ?>
     
     <style>
-    /* Enhanced Upload Panel Styles - Complete */
+    /* Enhanced Upload Panel Styles - Refined */
     .fmu-wrapper {
         max-width: 1400px;
         margin: 0 auto;
@@ -200,50 +197,70 @@ add_shortcode('upload_panel', function () {
         cursor: pointer;
     }
     
-    /* View Controls */
-    .fmu-controls {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        margin: 30px 0 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    /* View Controls - Matching Search Style */
+    .fm-pv-view-controls {
         display: flex;
         justify-content: space-between;
+        margin: 30px 0 20px;
         align-items: center;
         flex-wrap: wrap;
         gap: 20px;
     }
     
-    .fmu-view-switcher {
-        display: flex;
-        background: #f1f3f5;
-        padding: 4px;
-        border-radius: 8px;
-        gap: 2px;
+    .search-results-info {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0;
     }
     
-    .fmu-view-btn {
-        padding: 8px 16px;
+    .search-results-info .count-badge {
+        background: #0073aa;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        margin-left: 8px;
+    }
+    
+    .search-controls-right {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    
+    .fm-pv-select {
+        padding: 6px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+    }
+    
+    /* 4-View Switcher */
+    .fm-pv-view-switcher {
+        display: flex;
+        gap: 4px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 2px;
+    }
+    
+    .fm-pv-view-btn {
+        padding: 4px 8px;
         border: none;
         background: transparent;
-        border-radius: 6px;
+        border-radius: 3px;
         cursor: pointer;
-        font-weight: 500;
-        color: #495057;
+        color: #333;
+        font-size: 13px;
         transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 6px;
     }
     
-    .fmu-view-btn:hover {
-        background: rgba(0,0,0,0.05);
+    .fm-pv-view-btn.active {
+        background: #e0e0e0;
     }
     
-    .fmu-view-btn.active {
-        background: white;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-        color: #0073aa;
+    .fm-pv-view-btn:hover {
+        background: #f0f0f0;
     }
     
     /* Bulk Actions Bar */
@@ -277,7 +294,7 @@ add_shortcode('upload_panel', function () {
         border-color: #adb5bd;
     }
     
-    /* Grid Layouts */
+    /* Grid Container */
     .fmu-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -285,7 +302,7 @@ add_shortcode('upload_panel', function () {
         margin-bottom: 40px;
     }
     
-    /* Detail View (Default) */
+    /* DETAIL VIEW (Default) - Keep nice card style */
     .fmu-grid.detail-view .fmu-card {
         background: white;
         border-radius: 12px;
@@ -299,26 +316,35 @@ add_shortcode('upload_panel', function () {
         box-shadow: 0 8px 24px rgba(0,0,0,0.12);
     }
     
-    /* Mosaic View */
+    /* MOSAIC VIEW - Match search results */
     .fmu-grid.mosaic-view {
         display: block !important;
-        columns: 4;
-        column-gap: 16px;
+        column-count: 4;
+        column-gap: 10px;
     }
     
     @media (max-width: 1200px) {
-        .fmu-grid.mosaic-view { columns: 3; }
+        .fmu-grid.mosaic-view { column-count: 3; }
     }
     
     @media (max-width: 768px) {
-        .fmu-grid.mosaic-view { columns: 2; }
+        .fmu-grid.mosaic-view { column-count: 2; }
+    }
+    
+    @media (max-width: 480px) {
+        .fmu-grid.mosaic-view { column-count: 1; }
     }
     
     .fmu-grid.mosaic-view .fmu-card {
         break-inside: avoid;
-        margin-bottom: 16px;
-        border-radius: 8px;
+        margin-bottom: 10px;
+        display: inline-block;
+        width: 100%;
+        border-radius: 4px;
         overflow: hidden;
+        border: 1px solid #e0e0e0;
+        background: white;
+        padding: 4px;
     }
     
     .fmu-grid.mosaic-view .fmu-card-body,
@@ -326,53 +352,180 @@ add_shortcode('upload_panel', function () {
         display: none !important;
     }
     
-    /* List View */
+    /* LIST VIEW - Match search results */
     .fmu-grid.list-view {
-        display: flex !important;
-        flex-direction: column;
-        gap: 2px;
+        display: block !important;
     }
     
     .fmu-grid.list-view .fmu-card {
         display: flex;
-        align-items: center;
-        padding: 16px 20px;
-        background: white;
+        align-items: stretch;
+        gap: 0;
+        margin-bottom: 0;
+        padding: 0;
+        height: 80px;
+        border: none;
         border-radius: 0;
-        border-bottom: 1px solid #e9ecef;
-        gap: 20px;
+        background: #fafafa;
+        position: relative;
+        box-shadow: none;
     }
     
-    .fmu-grid.list-view .fmu-card:first-child {
-        border-top-left-radius: 12px;
-        border-top-right-radius: 12px;
-    }
-    
-    .fmu-grid.list-view .fmu-card:last-child {
-        border-bottom-left-radius: 12px;
-        border-bottom-right-radius: 12px;
-        border-bottom: none;
+    .fmu-grid.list-view .fmu-card::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #666;
     }
     
     .fmu-grid.list-view .fmu-card:hover {
-        background: #f8f9fa;
+        background: #f0f0f0;
+        transform: none;
+        box-shadow: none;
+    }
+    
+    .fmu-grid.list-view .fmu-card:last-child::after {
+        display: none;
+    }
+    
+    .fmu-grid.list-view .fmu-card-checkbox {
+        position: relative;
+        opacity: 1;
+        width: auto;
+        height: auto;
+        margin: 0 12px;
+        align-self: center;
     }
     
     .fmu-grid.list-view .fmu-card-image {
-        width: 80px;
-        height: 80px;
+        width: 60px;
+        height: 60px;
         flex-shrink: 0;
+        align-self: center;
+        margin-right: 12px;
+        padding-top: 0;
+    }
+    
+    .fmu-grid.list-view .fmu-card-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
     
     .fmu-grid.list-view .fmu-card-body {
-        flex: 1;
-        display: flex !important;
-        align-items: center;
-        gap: 20px;
+        display: none !important;
     }
     
     .fmu-grid.list-view .fmu-metadata {
         display: none !important;
+    }
+    
+    /* List view special elements */
+    .fmu-list-meta {
+        display: none;
+        flex: 0 0 220px;
+        flex-direction: column;
+        justify-content: center;
+        padding: 10px 15px;
+        background: #f8f8f8;
+        height: 100%;
+        position: relative;
+    }
+    
+    .fmu-grid.list-view .fmu-list-meta {
+        display: flex !important;
+    }
+    
+    .fmu-list-meta::before,
+    .fmu-list-meta::after {
+        content: '';
+        position: absolute;
+        top: 15px;
+        bottom: 15px;
+        width: 1px;
+        background: #666;
+    }
+    
+    .fmu-list-meta::before { left: 0; }
+    .fmu-list-meta::after { right: 0; }
+    
+    .fmu-list-labels {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 0 15px;
+        gap: 6px;
+        position: relative;
+    }
+    
+    .fmu-grid.list-view .fmu-list-labels {
+        display: flex !important;
+    }
+    
+    .fmu-list-labels::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 15px;
+        bottom: 15px;
+        width: 1px;
+        background: #666;
+    }
+    
+    .fmu-list-actions {
+        display: none;
+        align-items: center;
+        padding: 0 20px;
+        gap: 8px;
+        margin-left: auto;
+    }
+    
+    .fmu-grid.list-view .fmu-list-actions {
+        display: flex !important;
+    }
+    
+    /* COMPACT GRID VIEW (4th view) */
+    .fmu-grid.compact-view {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+    }
+    
+    .fmu-grid.compact-view .fmu-card {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        overflow: hidden;
+        transition: all 0.2s;
+    }
+    
+    .fmu-grid.compact-view .fmu-card:hover {
+        border-color: #0073aa;
+        transform: scale(1.02);
+    }
+    
+    .fmu-grid.compact-view .fmu-card-body {
+        padding: 8px !important;
+    }
+    
+    .fmu-grid.compact-view .fmu-card-body h4 {
+        font-size: 12px !important;
+        margin-bottom: 4px !important;
+    }
+    
+    .fmu-grid.compact-view .fmu-metadata {
+        display: none !important;
+    }
+    
+    .fmu-grid.compact-view .fmu-action-buttons {
+        margin-top: 8px !important;
+    }
+    
+    .fmu-grid.compact-view .fmu-btn {
+        padding: 4px 8px !important;
+        font-size: 12px !important;
     }
     
     /* Card Components */
@@ -413,42 +566,35 @@ add_shortcode('upload_panel', function () {
         object-fit: cover;
     }
     
-    /* Rating Overlay */
-    .fmu-rating-overlay {
-        position: absolute;
-        bottom: 10px;
-        left: 10px;
-        z-index: 5;
-    }
-    
-    /* Labels */
+    /* Labels - Universal Style from Search */
     .fmu-labels {
         display: flex;
-        gap: 6px;
+        gap: 4px;
         flex-wrap: wrap;
         align-items: center;
         margin-bottom: 12px;
     }
     
-    .fmu-label {
-        font-size: 11px;
-        font-weight: 600;
-        padding: 4px 10px;
-        border-radius: 20px;
+    .search-label {
+        font-size: 10px;
+        font-weight: bold;
+        padding: 3px 6px;
+        border-radius: 3px;
         color: white;
+        display: inline-block;
         text-transform: uppercase;
     }
     
-    .fmu-label-ST { background: #0073aa; }
-    .fmu-label-UP { background: #00a65a; }
-    .fmu-label-BR { background: #17a2b8; }
-    .fmu-label-LO { background: #ff7700; }
-    .fmu-label-FI { background: #e6b800; }
-    .fmu-label-PH { background: #008080; }
-    .fmu-label-VI { background: #7a4dc9; }
-    .fmu-label-VC { background: #c62828; }
-    .fmu-label-AI { background: #6c757d; }
-    .fmu-label-AN { background: #9c27b0; }
+    .search-label-ST { background: #0073aa; }
+    .search-label-UP { background: #00a65a; }
+    .search-label-BR { background: #17a2b8; }
+    .search-label-LO { background: #ff7700; }
+    .search-label-FI { background: #e6b800; }
+    .search-label-PH { background: #008080; }
+    .search-label-VI { background: #7a4dc9; }
+    .search-label-VC { background: #c62828; }
+    .search-label-AI { background: #6c757d; }
+    .search-label-AN { background: #9c27b0; }
     
     /* Label Dropdown */
     .fmu-label-dropdown {
@@ -472,6 +618,24 @@ add_shortcode('upload_panel', function () {
     
     .fmu-label-dropdown:hover .fmu-label-dropdown-content {
         display: block;
+    }
+    
+    /* Suggest for Brand Button - Universal Style */
+    .fmu-suggest-btn {
+        background: #6c757d;
+        color: white;
+        padding: 3px 10px;
+        border: none;
+        border-radius: 3px;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .fmu-suggest-btn:hover {
+        background: #5a6268;
+        transform: translateY(-1px);
     }
     
     /* Metadata Panel */
@@ -565,14 +729,73 @@ add_shortcode('upload_panel', function () {
         color: white;
     }
     
-    .fmu-btn-secondary {
-        background: #6c757d;
-        color: white;
-    }
-    
     .fmu-btn:hover {
         transform: translateY(-1px);
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    
+    /* Rejection Modal */
+    .fmu-reject-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .fmu-reject-modal.active {
+        display: flex;
+    }
+    
+    .fmu-reject-content {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    
+    .fmu-reject-content h3 {
+        margin: 0 0 20px 0;
+        font-size: 20px;
+    }
+    
+    .fmu-reject-content textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        resize: vertical;
+        min-height: 100px;
+        font-family: inherit;
+        font-size: 14px;
+    }
+    
+    .fmu-reject-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+        justify-content: flex-end;
+    }
+    
+    /* Rating UI inline style */
+    .fm-rating-overlay {
+        display: inline-flex;
+        align-items: center;
+    }
+    
+    .fm-rating-overlay button {
+        font-size: 16px !important;
+        line-height: 1 !important;
+        padding: 2px 6px !important;
+        min-width: auto !important;
+        height: auto !important;
     }
     </style>
 
@@ -607,35 +830,27 @@ add_shortcode('upload_panel', function () {
         <?php if (!empty($attachments)): ?>
         
         <!-- View Controls & Sorting -->
-        <div class="fmu-controls">
-            <h3 style="margin: 0; font-size: 20px;">
+        <div class="fm-pv-view-controls">
+            <h3 class="search-results-info">
                 📂 Pending Review 
-                <span style="background: #0073aa; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; margin-left: 8px;">
-                    <?php echo count($attachments); ?>
-                </span>
+                <span class="count-badge"><?php echo count($attachments); ?></span>
             </h3>
             
-            <div style="display: flex; gap: 16px; align-items: center;">
+            <div class="search-controls-right">
                 <!-- Sorting Dropdown -->
-                <select onchange="window.location.href='?sort=' + this.value + '#upload'" 
-                        style="padding: 8px 16px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px;">
+                <select class="fm-pv-select" onchange="window.location.href='?sort=' + this.value + '#upload'">
                     <option value="date-desc" <?php selected($_GET['sort'] ?? '', 'date-desc'); ?>>Newest First</option>
                     <option value="date-asc" <?php selected($_GET['sort'] ?? '', 'date-asc'); ?>>Oldest First</option>
                     <option value="name-asc" <?php selected($_GET['sort'] ?? '', 'name-asc'); ?>>Name A-Z</option>
                     <option value="name-desc" <?php selected($_GET['sort'] ?? '', 'name-desc'); ?>>Name Z-A</option>
                 </select>
                 
-                <!-- 3-View System -->
-                <div class="fmu-view-switcher">
-                    <button type="button" class="fmu-view-btn active" onclick="setView('detail', this)">
-                        ⊞ Detail
-                    </button>
-                    <button type="button" class="fmu-view-btn" onclick="setView('mosaic', this)">
-                        ▦ Mosaic
-                    </button>
-                    <button type="button" class="fmu-view-btn" onclick="setView('list', this)">
-                        ☰ List
-                    </button>
+                <!-- 4-View System -->
+                <div class="fm-pv-view-switcher">
+                    <button type="button" class="fm-pv-view-btn active" onclick="setView('detail', this)" title="Detail View">⊞ Detail</button>
+                    <button type="button" class="fm-pv-view-btn" onclick="setView('mosaic', this)" title="Mosaic View">▦ Mosaic</button>
+                    <button type="button" class="fm-pv-view-btn" onclick="setView('list', this)" title="List View">☰ List</button>
+                    <button type="button" class="fm-pv-view-btn" onclick="setView('compact', this)" title="Compact Grid">⊡ Compact</button>
                 </div>
             </div>
         </div>
@@ -651,9 +866,6 @@ add_shortcode('upload_panel', function () {
                 <button type="button" onclick="bulkAction('approve')" class="fmu-btn fmu-btn-success">
                     ✅ Bulk Approve
                 </button>
-                <button type="button" onclick="bulkAction('save')" class="fmu-btn fmu-btn-primary">
-                    💾 Bulk Save
-                </button>
                 <button type="button" onclick="bulkAction('reject')" class="fmu-btn fmu-btn-danger">
                     🗑️ Bulk Reject
                 </button>
@@ -663,6 +875,7 @@ add_shortcode('upload_panel', function () {
         <form method="post" id="main-form">
             <!-- Hidden fields for bulk actions -->
             <input type="hidden" name="bulk_action" id="bulk-action">
+            <input type="hidden" name="bulk_reject_reason" id="bulk-reject-reason">
             
             <div class="fmu-grid detail-view" id="asset-grid">
             <?php foreach ($attachments as $a):
@@ -700,15 +913,9 @@ add_shortcode('upload_panel', function () {
                     
                     <div class="fmu-card-image">
                         <img src="<?php echo esc_url($thumb[0]); ?>" alt="<?php echo esc_attr($filename); ?>">
-                        
-                        <!-- Rating UI Overlay -->
-                        <?php if (function_exists('fastmedia_rating_ui')): ?>
-                            <div class="fmu-rating-overlay">
-                                <?php echo fastmedia_rating_ui($a->ID); ?>
-                            </div>
-                        <?php endif; ?>
                     </div>
                     
+                    <!-- Detail/Compact view body -->
                     <div class="fmu-card-body" style="padding: 20px;">
                         <!-- Title & Meta -->
                         <h4 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">
@@ -719,12 +926,12 @@ add_shortcode('upload_panel', function () {
                             <?php echo size_format(filesize(get_attached_file($a->ID))); ?>
                         </p>
                         
-                        <!-- Labels with Dropdown Editor -->
+                        <!-- Labels with Rating inline -->
                         <div class="fmu-labels">
                             <?php foreach ($labels as $code): 
                                 if (isset($label_map[$code])):
                             ?>
-                                <span class="fmu-label fmu-label-<?php echo esc_attr($code); ?>">
+                                <span class="search-label search-label-<?php echo esc_attr($code); ?>">
                                     <?php echo esc_html($code); ?>
                                 </span>
                             <?php endif; endforeach; ?>
@@ -755,9 +962,16 @@ add_shortcode('upload_panel', function () {
                             <!-- Suggest for Brand Button -->
                             <?php if (!in_array('BR', $labels)): ?>
                                 <button type="button" onclick="suggestForBrand(<?php echo $a->ID; ?>)" 
-                                        class="fmu-btn fmu-btn-secondary" style="padding: 4px 12px; font-size: 12px;">
+                                        class="fmu-suggest-btn">
                                     Suggest for Brand
                                 </button>
+                            <?php endif; ?>
+                            
+                            <!-- Rating UI inline -->
+                            <?php if (function_exists('fastmedia_rating_ui')): ?>
+                                <div class="fm-rating-overlay">
+                                    <?php echo fastmedia_rating_ui($a->ID); ?>
+                                </div>
                             <?php endif; ?>
                         </div>
                         
@@ -769,58 +983,52 @@ add_shortcode('upload_panel', function () {
                         <?php endif; ?>
                         
                         <!-- Action Buttons -->
-                        <div style="display: flex; gap: 8px; margin-top: 16px;">
+                        <div class="fmu-action-buttons" style="display: flex; gap: 8px; margin-top: 16px;">
                             <button type="submit" name="fastmedia_approve_ids[]" value="<?php echo $a->ID; ?>" 
                                     class="fmu-btn fmu-btn-success">
                                 ✅ Approve
                             </button>
-                            <button type="submit" name="fastmedia_save_ids[]" value="<?php echo $a->ID; ?>" 
-                                    class="fmu-btn fmu-btn-primary">
-                                💾 Save
-                            </button>
-                            <button type="submit" name="fastmedia_reject_ids[]" value="<?php echo $a->ID; ?>" 
+                            <button type="button" onclick="showRejectModal(<?php echo $a->ID; ?>)" 
                                     class="fmu-btn fmu-btn-danger">
                                 🗑️ Reject
                             </button>
                         </div>
+                    </div>
+                    
+                    <!-- List View Elements -->
+                    <div class="fmu-list-meta">
+                        <strong><?php echo esc_html($filename); ?></strong>
+                        <small style="color: #666;">
+                            <?php echo get_the_date('M j, Y', $a->ID); ?> • 
+                            <?php echo size_format(filesize(get_attached_file($a->ID))); ?>
+                        </small>
+                    </div>
+                    
+                    <div class="fmu-list-labels">
+                        <?php foreach ($labels as $code): 
+                            if (isset($label_map[$code])):
+                        ?>
+                            <span class="search-label search-label-<?php echo esc_attr($code); ?>">
+                                <?php echo esc_html($code); ?>
+                            </span>
+                        <?php endif; endforeach; ?>
                         
-                        <!-- List View Info (hidden in detail view) -->
-                        <div class="fmu-list-info" style="display: none; flex: 1;">
-                            <div>
-                                <strong><?php echo esc_html($filename); ?></strong><br>
-                                <small style="color: #6c757d;">
-                                    <?php echo get_the_date('M j, Y', $a->ID); ?> • 
-                                    <?php echo size_format(filesize(get_attached_file($a->ID))); ?>
-                                </small>
+                        <?php if (function_exists('fastmedia_rating_ui')): ?>
+                            <div class="fm-rating-overlay">
+                                <?php echo fastmedia_rating_ui($a->ID); ?>
                             </div>
-                        </div>
-                        
-                        <!-- List View Labels (hidden in detail view) -->
-                        <div class="fmu-list-labels" style="display: none; min-width: 200px;">
-                            <?php foreach ($labels as $code): 
-                                if (isset($label_map[$code])):
-                            ?>
-                                <span class="fmu-label fmu-label-<?php echo esc_attr($code); ?>">
-                                    <?php echo esc_html($code); ?>
-                                </span>
-                            <?php endif; endforeach; ?>
-                        </div>
-                        
-                        <!-- List View Actions (hidden in detail view) -->
-                        <div class="fmu-list-actions" style="display: none; gap: 8px;">
-                            <button type="submit" name="fastmedia_approve_ids[]" value="<?php echo $a->ID; ?>" 
-                                    class="fmu-btn fmu-btn-success" style="padding: 6px 12px;">
-                                ✅ Approve
-                            </button>
-                            <button type="submit" name="fastmedia_save_ids[]" value="<?php echo $a->ID; ?>" 
-                                    class="fmu-btn fmu-btn-primary" style="padding: 6px 12px;">
-                                💾 Save
-                            </button>
-                            <button type="submit" name="fastmedia_reject_ids[]" value="<?php echo $a->ID; ?>" 
-                                    class="fmu-btn fmu-btn-danger" style="padding: 6px 12px;">
-                                🗑️ Reject
-                            </button>
-                        </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="fmu-list-actions">
+                        <button type="submit" name="fastmedia_approve_ids[]" value="<?php echo $a->ID; ?>" 
+                                class="fmu-btn fmu-btn-success" style="padding: 6px 12px;">
+                            ✅ Approve
+                        </button>
+                        <button type="button" onclick="showRejectModal(<?php echo $a->ID; ?>)" 
+                                class="fmu-btn fmu-btn-danger" style="padding: 6px 12px;">
+                            🗑️ Reject
+                        </button>
                     </div>
                     
                     <!-- Metadata Management -->
@@ -918,9 +1126,23 @@ add_shortcode('upload_panel', function () {
         <?php endif; ?>
     </div>
 
+    <!-- Rejection Reason Modal -->
+    <div class="fmu-reject-modal" id="reject-modal">
+        <div class="fmu-reject-content">
+            <h3>Reason for Rejection</h3>
+            <textarea id="reject-reason-text" placeholder="Please provide a reason for rejecting this asset..."></textarea>
+            <div class="fmu-reject-buttons">
+                <button type="button" class="fmu-btn" onclick="closeRejectModal()">Cancel</button>
+                <button type="button" class="fmu-btn fmu-btn-danger" onclick="confirmReject()">Confirm Reject</button>
+            </div>
+        </div>
+    </div>
+
     <script>
     // Use same nonce as asset code
     window.fastmedia_nonce = '<?php echo wp_create_nonce("fastmedia_project_nonce"); ?>';
+    
+    let currentRejectId = null;
     
     // Drag and Drop functionality
     const dropzone = document.getElementById('dropzone');
@@ -982,10 +1204,10 @@ add_shortcode('upload_panel', function () {
         }
     }
     
-    // View switching (3-view system)
+    // View switching (4-view system)
     function setView(view, btn) {
         const grid = document.getElementById('asset-grid');
-        const buttons = document.querySelectorAll('.fmu-view-btn');
+        const buttons = document.querySelectorAll('.fm-pv-view-btn');
         
         // Update grid class
         grid.className = 'fmu-grid ' + view + '-view';
@@ -993,27 +1215,6 @@ add_shortcode('upload_panel', function () {
         // Update active button
         buttons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        
-        // Show/hide elements based on view
-        if (view === 'list') {
-            // Show list view elements
-            document.querySelectorAll('.fmu-list-info, .fmu-list-labels, .fmu-list-actions').forEach(el => {
-                el.style.display = 'flex';
-            });
-            // Hide detail elements
-            document.querySelectorAll('.fmu-card .fmu-labels, .fmu-card > .fmu-card-body > div:not(.fmu-list-info):not(.fmu-list-labels):not(.fmu-list-actions)').forEach(el => {
-                el.style.display = 'none';
-            });
-        } else {
-            // Hide list view elements
-            document.querySelectorAll('.fmu-list-info, .fmu-list-labels, .fmu-list-actions').forEach(el => {
-                el.style.display = 'none';
-            });
-            // Show detail elements
-            document.querySelectorAll('.fmu-card .fmu-labels, .fmu-card > .fmu-card-body > div:not(.fmu-list-info):not(.fmu-list-labels):not(.fmu-list-actions)').forEach(el => {
-                el.style.display = '';
-            });
-        }
         
         // Save preference
         localStorage.setItem('fmu_view', view);
@@ -1054,23 +1255,66 @@ add_shortcode('upload_panel', function () {
             return;
         }
         
-        let confirmMsg = '';
-        switch(action) {
-            case 'approve':
-                confirmMsg = `Approve ${checkboxes.length} assets?`;
-                break;
-            case 'save':
-                confirmMsg = `Save ${checkboxes.length} assets?`;
-                break;
-            case 'reject':
-                confirmMsg = `Delete ${checkboxes.length} assets? This cannot be undone.`;
-                break;
+        if (action === 'reject') {
+            const modal = document.getElementById('reject-modal');
+            modal.classList.add('active');
+            document.getElementById('reject-reason-text').value = '';
+            
+            // Set up for bulk reject
+            window.bulkReject = true;
+        } else {
+            if (!confirm(`Approve ${checkboxes.length} assets?`)) return;
+            
+            document.getElementById('bulk-action').value = action;
+            document.getElementById('main-form').submit();
+        }
+    }
+    
+    // Rejection modal functions
+    function showRejectModal(assetId) {
+        currentRejectId = assetId;
+        window.bulkReject = false;
+        const modal = document.getElementById('reject-modal');
+        modal.classList.add('active');
+        document.getElementById('reject-reason-text').value = '';
+    }
+    
+    function closeRejectModal() {
+        const modal = document.getElementById('reject-modal');
+        modal.classList.remove('active');
+        currentRejectId = null;
+        window.bulkReject = false;
+    }
+    
+    function confirmReject() {
+        const reason = document.getElementById('reject-reason-text').value.trim();
+        if (!reason) {
+            alert('Please provide a reason for rejection');
+            return;
         }
         
-        if (!confirm(confirmMsg)) return;
-        
-        document.getElementById('bulk-action').value = action;
-        document.getElementById('main-form').submit();
+        if (window.bulkReject) {
+            // Bulk reject
+            document.getElementById('bulk-action').value = 'reject';
+            document.getElementById('bulk-reject-reason').value = reason;
+            document.getElementById('main-form').submit();
+        } else {
+            // Individual reject
+            const form = document.getElementById('main-form');
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'reject_reason_' + currentRejectId;
+            input.value = reason;
+            form.appendChild(input);
+            
+            const rejectInput = document.createElement('input');
+            rejectInput.type = 'hidden';
+            rejectInput.name = 'fastmedia_reject_ids[]';
+            rejectInput.value = currentRejectId;
+            form.appendChild(rejectInput);
+            
+            form.submit();
+        }
     }
     
     // Label management
@@ -1165,8 +1409,20 @@ add_shortcode('upload_panel', function () {
     document.addEventListener('DOMContentLoaded', function() {
         const savedView = localStorage.getItem('fmu_view');
         if (savedView && savedView !== 'detail') {
-            const btn = document.querySelector(`.fmu-view-btn:nth-child(${savedView === 'mosaic' ? 2 : 3})`);
+            const viewMap = {
+                'mosaic': 2,
+                'list': 3,
+                'compact': 4
+            };
+            const btn = document.querySelector(`.fm-pv-view-btn:nth-child(${viewMap[savedView]})`);
             if (btn) setView(savedView, btn);
+        }
+    });
+    
+    // Close modal on outside click
+    document.getElementById('reject-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeRejectModal();
         }
     });
     </script>
