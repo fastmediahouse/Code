@@ -1,8 +1,9 @@
 /*
 Plugin Name: FastMedia: Auto Group + GCS Setup on Checkout
-Description: Hooks into PMPro checkout to create BuddyBoss Group, fm_team CPT, and assign GCS path + role. Only runs on HUB plans.
+Description: Hooks into PMPro checkout to create BuddyPress Group, fm_team CPT, and assign GCS path + role. Only runs on HUB plans.
 */
 
+// 🔁 MAIN HOOK: After checkout, create group, team post, assign GCS path and role
 add_action('pmpro_after_checkout', 'fm_auto_group_and_gcs_path_setup', 10, 2);
 function fm_auto_group_and_gcs_path_setup($user_id, $order) {
     if (!$user_id || !$order || !function_exists('groups_create_group')) return;
@@ -24,14 +25,14 @@ function fm_auto_group_and_gcs_path_setup($user_id, $order) {
     $user = get_userdata($user_id);
     $username = $user->user_login;
     $company_name = get_user_meta($user_id, 'pmpro_bcompany', true);
-
     if (!$company_name) return; // Must have company name
+
     $team_slug = sanitize_title($company_name);
 
     // Prevent duplicate setup
     if (get_page_by_path($team_slug, OBJECT, 'fm_team')) return;
 
-    // 👥 Create BuddyBoss Group
+    // 👥 Create BuddyPress Group
     $group_id = groups_create_group([
         'name'        => $company_name,
         'slug'        => 'team-' . $team_slug,
@@ -40,6 +41,7 @@ function fm_auto_group_and_gcs_path_setup($user_id, $order) {
         'creator_id'  => $user_id
     ]);
     if (!$group_id) return;
+
     groups_update_groupmeta($group_id, 'team_slug', $team_slug);
     groups_join_group($group_id, $user_id);
     groups_promote_member($user_id, $group_id, 'admin');
@@ -71,7 +73,7 @@ function fm_auto_group_and_gcs_path_setup($user_id, $order) {
     error_log("✅ FastMedia: Group + GCS setup complete for $company_name (user: $user_id)");
 }
 
-// ✅ Custom PMPro Checkout Field – Company Name (Required)
+// ✅ Add Company Name field to PMPro checkout
 add_filter('pmpro_checkout_boxes', function() {
     echo '<hr><h3>Company Info</h3>
         <table>
@@ -79,11 +81,32 @@ add_filter('pmpro_checkout_boxes', function() {
                 <td><label for="company">Company Name *</label></td>
                 <td><input name="bcompany" id="bcompany" type="text" class="input" size="30" required></td>
             </tr>
-        </table>';
+        </table>
+        <p><strong>Important:</strong> We will use your company name to create a private team group and a secure storage location for your files. The storage will be set up within 3 days.</p>';
 });
 
+// ✅ Save Company Name to user meta
 add_action('pmpro_after_checkout', function($user_id) {
     if (!empty($_REQUEST['bcompany'])) {
         update_user_meta($user_id, 'pmpro_bcompany', sanitize_text_field($_REQUEST['bcompany']));
     }
+});
+
+// ✅ Override upload directory for WP Stateless to use user-specific GCS path
+add_filter('wp_upload_dir', function($dirs) {
+    if (!is_user_logged_in()) return $dirs;
+
+    $user_id = get_current_user_id();
+    $gcs_path = get_user_meta($user_id, 'gcs_path', true);
+    if (!$gcs_path) return $dirs;
+
+    // Remove trailing slash if any
+    $gcs_path = rtrim($gcs_path, '/') . '/';
+
+    // Override paths
+    $dirs['subdir'] = $gcs_path; // No date-based subfolder
+    $dirs['path']   = $dirs['basedir'] . $dirs['subdir'];
+    $dirs['url']    = $dirs['baseurl'] . $dirs['subdir'];
+
+    return $dirs;
 });
