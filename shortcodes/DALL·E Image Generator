@@ -1,0 +1,136 @@
+// 📁 DALLE + SDXL Integration Plan for Fast Media
+
+// 🎯 Objective:
+// Extend [fm_dalle_generator] shortcode to support SDXL via Stability AI alongside DALL·E
+
+add_shortcode('fm_dalle_generator', function () {
+    if (!is_user_logged_in()) {
+        return '<p>You must be logged in to generate AI images.</p>';
+    }
+
+    $user_id = get_current_user_id();
+    $max_per_day = 2;
+    $ai_credits = (int) get_user_meta($user_id, 'ai_credits', true);
+    $today = date('Y-m-d');
+    $used_today = (int) get_user_meta($user_id, 'ai_used_' . $today, true);
+
+    // 🔑 API KEYS
+    $openai_api_key = 'xxxxxxxx'; // Replace with your actual OpenAI key
+    $stability_api_key = 'xxxxxxxx'; // Replace with your actual Stability AI key
+
+    ob_start();
+
+    // 📤 Handle form
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fm_prompt'])) {
+        $prompt = sanitize_text_field($_POST['fm_prompt']);
+        $style = sanitize_text_field($_POST['fm_style']);
+        $size = sanitize_text_field($_POST['fm_size']);
+        $model = sanitize_text_field($_POST['fm_model'] ?? 'auto');
+
+        if (empty($prompt)) {
+            echo '<p style="color:red;">Please enter a prompt.</p>';
+        } elseif ($used_today >= $max_per_day && $ai_credits <= 0) {
+            echo '<p style="color:red;">You have reached your daily free limit and have no remaining AI credits.</p>';
+        } else {
+            $image_url = '';
+
+            if ($model === 'sdxl') {
+                // 📡 Stability AI SDXL endpoint
+                $response = wp_remote_post('https://api.stability.ai/v2beta/stable-image/generate/core', [
+                    'headers' => [
+                        'Authorization' => 'Bearer ' . $stability_api_key,
+                        'Accept' => 'application/json',
+                        'Content-Type' => 'application/json',
+                    ],
+                    'body' => json_encode([
+                        'prompt' => $prompt,
+                        'output_format' => 'png',
+                        'aspect_ratio' => '1:1',
+                        'model' => 'sdxl',
+                    ]),
+                    'timeout' => 30,
+                ]);
+
+                if (!is_wp_error($response)) {
+                    $body = json_decode(wp_remote_retrieve_body($response), true);
+                    if (!empty($body['image'])) {
+                        $image_url = 'data:image/png;base64,' . $body['image'];
+                    } else {
+                        echo '<p style="color:red;">SDXL API Error: ' . esc_html($body['error']['message'] ?? 'Unknown error') . '</p>';
+                    }
+                } else {
+                    echo '<p style="color:red;">SDXL Request failed: ' . esc_html($response->get_error_message()) . '</p>';
+                }
+
+            } else {
+                // 📡 Default: DALL·E (OpenAI)
+                $response = wp_remote_post('https://api.openai.com/v1/images/generations', [
+                    'headers' => [
+                        'Authorization' => 'Bearer ' . $openai_api_key,
+                        'Content-Type' => 'application/json',
+                    ],
+                    'body' => json_encode([
+                        'prompt' => $prompt,
+                        'size' => $size,
+                        'n' => 1,
+                    ]),
+                    'timeout' => 30,
+                ]);
+
+                if (!is_wp_error($response)) {
+                    $body = json_decode(wp_remote_retrieve_body($response), true);
+                    if (!empty($body['data'][0]['url'])) {
+                        $image_url = esc_url($body['data'][0]['url']);
+                    } else {
+                        echo '<p style="color:red;">DALL·E API Error: ' . esc_html($body['error']['message'] ?? 'Unknown error') . '</p>';
+                    }
+                } else {
+                    echo '<p style="color:red;">DALL·E Request failed: ' . esc_html($response->get_error_message()) . '</p>';
+                }
+            }
+
+            // ✅ Output image
+            if (!empty($image_url)) {
+                echo '<div style="margin-top:20px;"><strong>Generated Image:</strong><br><img src="' . $image_url . '" style="max-width:100%;border:1px solid #ccc;border-radius:6px;" /></div>';
+
+                // Deduct credits or increment counter
+                if ($used_today < $max_per_day) {
+                    update_user_meta($user_id, 'ai_used_' . $today, $used_today + 1);
+                } else {
+                    update_user_meta($user_id, 'ai_credits', max(0, $ai_credits - 1));
+                }
+            }
+        }
+    }
+
+    // 📄 Prompt Form
+    ?>
+    <form method="post" style="margin-top:20px;padding:20px;border:1px solid #ddd;border-radius:10px;background:#f9f9f9;">
+        <label><strong>Choose Model:</strong>
+            <select name="fm_model" style="margin-bottom:10px;width:100%;">
+                <option value="auto" <?php selected($_POST['fm_model'] ?? '', 'auto'); ?>>Auto (Best Match)</option>
+                <option value="dalle" <?php selected($_POST['fm_model'] ?? '', 'dalle'); ?>>DALL·E (OpenAI)</option>
+                <option value="sdxl" <?php selected($_POST['fm_model'] ?? '', 'sdxl'); ?>>SDXL (Stability AI)</option>
+                <option value="replicate" disabled>Replicate (Coming Soon)</option>
+                <option value="flux" disabled>FLUX (Coming Soon)</option>
+            </select>
+        </label>
+        <label><strong>Prompt:</strong><br>
+            <input type="text" name="fm_prompt" value="<?php echo esc_attr($_POST['fm_prompt'] ?? ''); ?>" style="width:100%;padding:10px;margin-top:5px;margin-bottom:10px;border-radius:6px;border:1px solid #ccc;">
+        </label>
+        <label><strong>Style:</strong>
+            <input type="text" name="fm_style" value="<?php echo esc_attr($_POST['fm_style'] ?? ''); ?>" style="width:100%;padding:10px;margin-top:5px;margin-bottom:10px;border-radius:6px;border:1px solid #ccc;">
+        </label>
+        <label><strong>Size:</strong>
+            <select name="fm_size" style="width:100%;margin-bottom:10px;">
+                <option value="1024x1024">1024×1024</option>
+                <option value="512x512">512×512</option>
+                <option value="256x256">256×256</option>
+            </select>
+        </label>
+        <button type="submit" style="padding:10px 20px;background:#0073aa;color:#fff;border:none;border-radius:5px;cursor:pointer;">Generate</button>
+    </form>
+    <p style="font-size:14px;color:#777;margin-top:10px;">Free: <?php echo max(0, $max_per_day - $used_today); ?> today • Credits: <?php echo $ai_credits; ?> • <a href="/buy-ai-credits/">Buy more</a></p>
+    <?php
+    return ob_get_clean();
+});
