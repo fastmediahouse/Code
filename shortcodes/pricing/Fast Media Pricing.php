@@ -1,232 +1,359 @@
-add_shortcode('solwee_price_calculator', function () {
+add_shortcode('membership_options_grid', function () {
+    $plans = [
+        1 => 'Free',
+        2 => 'Community (€3.50/mo)',
+        3 => 'Community Year (€35/yr)',
+        4 => 'HUB Individual (€5/mo)',
+        5 => 'HUB Team 5 (€22/mo)',
+        6 => 'HUB Team 10 (€40/mo)',
+        7 => 'HUB Team 25 (€95/mo)',
+        9 => 'Enterprise'
+    ];
+
+    $features = [
+        1 => ['Magic/Universal Search','Save up to 25 projects','Download','License','Download history','Community help'],
+        2 => ['All Free options','Unlimited projects','10% discount on licensing','Comp downloading','Message members','Create groups'],
+        3 => ['All Free options','Unlimited projects','10% discount on licensing','Comp downloading','Message members','Create groups'],
+        4 => ['All Community options','Upload images','Bulk upload','Metadata editing','Activity log','Editing shortcuts','Projects','Note taking','Version control'],
+        5 => ['All HUB Individual options','Team access','Roles','Collaboration tools','Admin user'],
+        6 => ['All HUB Individual options','Team access','Roles','Collaboration tools','Admin user'],
+        7 => ['All HUB Individual options','Team access','Roles','Collaboration tools','Admin user'],
+        9 => ['All HUB Team options','Bigger teams','Dedicated support','1TB storage','AI tagging and captions']
+    ];
+
+    function render_plan_features($list) {
+        $out = '<ul class="fm-features">'; 
+        foreach ($list as $item) {
+            $out .= '<li><span class="fm-check">✅</span> '.esc_html($item).'</li>'; 
+        }
+        return $out.'</ul>';
+    }
+
+    function get_team_discount_badge($price, $team_size) {
+        $individual_price = 5; // HUB Individual is €5/mo
+        $per_user = $price / $team_size;
+        
+        // For Team 5: €22/5 = €4.40 per user (12% savings)
+        // For Team 10: €40/10 = €4 per user (20% savings)
+        // For Team 25: €95/25 = €3.80 per user (24% savings)
+        
+        $savings = round((($individual_price - $per_user) / $individual_price) * 100);
+        
+        // Add per-user price info for clarity
+        if ($savings > 0) {
+            $per_user_formatted = number_format($per_user, 2);
+            return "<div class='fm-discount-badge'>💡 Save {$savings}% vs individual<br><small>€{$per_user_formatted}/user per month</small></div>";
+        }
+        return "";
+    }
+
     ob_start();
     ?>
     <style>
-    .price-calc-container { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background: #f9f9f9; }
-    .price-calc-container h2 { margin-top: 0; }
-    .price-calc-row { margin-bottom: 15px; }
-    .price-calc-label { display: block; font-weight: 600; margin-bottom: 5px; }
-    select { padding: 6px; width: 100%; }
-    input[type="checkbox"] { vertical-align: middle; margin-right: 6px; }
-    .price-output { background: #fff; padding: 15px; border-radius: 8px; font-size: 18px; margin-top: 20px; }
-    .modifiers-wrap { margin-top: 10px; }
-    .modifiers-wrap label { display: block; margin-top: 6px; }
-    .price-note { font-size: 14px; color: #555; margin-top: 10px; font-style: italic; display: none; }
-    .clear-btn { margin-top: 10px; background: #eee; border: 1px solid #ccc; padding: 6px 12px; border-radius: 6px; cursor: pointer; display: inline-block; }
+    .fm-container { max-width: 1200px; margin: 0 auto; }
+    
+    .fm-tabs { 
+        display: flex; 
+        gap: 10px; 
+        margin-bottom: 30px; 
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .fm-tab {
+        padding: 12px 24px;
+        border-radius: 12px;
+        border: 2px solid transparent;
+        background: #e3f2fd;
+        color: #0056b3;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 16px;
+    }
+    
+    .fm-tab:hover {
+        background: #bbdefb;
+        transform: translateY(-2px);
+    }
+    
+    .fm-tab.active {
+        background: #0056b3;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(0, 86, 179, 0.3);
+    }
+    
+    .fm-grid { 
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 30px;
+        padding: 20px 0;
+    }
+    
+    .fm-card {
+        background: #fff;
+        border: 2px solid #e5e5e5;
+        border-radius: 20px;
+        padding: 35px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .fm-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        border-color: #d0d0d0;
+    }
+    
+    .fm-card h3 {
+        margin: 0 0 25px 0;
+        font-size: 28px;
+        color: #222;
+    }
+    
+    .fm-card h4 {
+        margin: 0 0 20px 0;
+        font-size: 20px;
+        color: #333;
+    }
+    
+    .fm-card p {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0056b3;
+        margin: 15px 0;
+    }
+    
+    .fm-features {
+        list-style: none;
+        padding-left: 0;
+        margin: 20px 0;
+        flex-grow: 1;
+    }
+    
+    .fm-features li {
+        padding: 8px 0;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        line-height: 1.5;
+    }
+    
+    .fm-check {
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+    
+    .fm-btn {
+        background: linear-gradient(135deg, #28a745, #218838);
+        color: #fff;
+        padding: 14px 28px;
+        border-radius: 12px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 20px;
+        border: none;
+        font-weight: 600;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        width: 100%;
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+    }
+    
+    .fm-btn:hover {
+        background: linear-gradient(135deg, #218838, #1e7e34);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(40, 167, 69, 0.4);
+        text-decoration: none;
+        color: #fff;
+    }
+    
+    .fm-team-selector {
+        background: #fff;
+        border: 2px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 12px 16px;
+        width: 100%;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+        color: #333;
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 16px center;
+        background-size: 20px;
+        padding-right: 48px;
+    }
+    
+    .fm-team-selector:hover {
+        border-color: #28a745;
+        background-color: #f8f9fa;
+    }
+    
+    .fm-team-selector:focus {
+        outline: none;
+        border-color: #28a745;
+        box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+    }
+    
+    .fm-team-selector option {
+        color: #333;
+        background: #fff;
+        padding: 10px;
+    }
+    
+    .hub-team-options {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    .fm-discount-badge {
+        text-align: center;
+        margin: 15px 0;
+        padding: 12px;
+        background: #e8f5e9;
+        border-radius: 10px;
+        color: #2e7d32;
+        font-weight: 600;
+        font-size: 15px;
+        line-height: 1.4;
+    }
+    
+    .fm-discount-badge small {
+        display: block;
+        font-size: 13px;
+        margin-top: 4px;
+        font-weight: 500;
+        color: #388e3c;
+    }
+    
+    /* Storage tab specific styles */
+    #tab-storage .fm-card {
+        text-align: center;
+    }
+    
+    #tab-storage .fm-card h3 {
+        color: #0056b3;
+        margin-bottom: 15px;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @media (max-width: 768px) {
+        .fm-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .fm-card {
+            padding: 25px;
+        }
+        
+        .fm-tabs {
+            gap: 8px;
+        }
+        
+        .fm-tab {
+            padding: 10px 18px;
+            font-size: 14px;
+        }
+    }
     </style>
 
-    <div class="price-calc-container">
-        <h2>Image Licensing Calculator</h2>
-
-        <div class="price-calc-row">
-            <label class="price-calc-label">Category</label>
-            <select id="cat-select">
-                <option value="">-- Select Category --</option>
-                <option value="pricing_brochures">Brochures</option>
-                <option value="pricing_books">Books</option>
-                <option value="pricing_newspapers">Newspapers</option>
-                <option value="pricing_magazines">Magazines</option>
-                <option value="pricing_retail">Retail</option>
-                <option value="pricing_online">Online</option>
-                <option value="pricing_advertising">Advertising</option>
-                <option value="pricing_outdoor">Outdoor</option>
-                <option value="pricing_tv">TV</option>
-                <option value="pricing_press_release">Press Release</option>
-            </select>
+    <div class="fm-container">
+        <div class="fm-tabs">
+            <button class="fm-tab active" onclick="fmShowTab('community')">🎓 Community</button>
+            <button class="fm-tab" onclick="fmShowTab('hub')">📤 HUB Plans</button>
+            <button class="fm-tab" onclick="fmShowTab('enterprise')">📚 Enterprise</button>
+            <button class="fm-tab" onclick="fmShowTab('storage')">💾 Storage Add-ons</button>
         </div>
 
-        <div class="price-calc-row">
-            <label class="price-calc-label">Usage Type / Size</label>
-            <select id="usage-select"></select>
+        <div id="fmTabContent">
+            <div id="tab-community" class="fm-grid">
+                <?php foreach ([1, 2, 3] as $id): ?>
+                    <div class="fm-card">
+                        <h3><?= esc_html($plans[$id]) ?></h3>
+                        <?= render_plan_features($features[$id]) ?>
+                        <a href="/membership-checkout/?level=<?= $id ?>" class="fm-btn">Choose Plan</a>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <div id="tab-hub" class="fm-grid" style="display:none;">
+                <div class="fm-card">
+                    <h3><?= esc_html($plans[4]) ?></h3>
+                    <?= render_plan_features($features[4]) ?>
+                    <a href="/membership-checkout/?level=4" class="fm-btn">Choose Plan</a>
+                </div>
+                <div class="fm-card">
+                    <h3>HUB Teams</h3>
+                    <select class="fm-team-selector" onchange="document.querySelectorAll('.hub-team-options').forEach(el=>el.style.display='none'); document.getElementById(this.value).style.display='block';">
+                        <option value="hub_team_5">Team of 5</option>
+                        <option value="hub_team_10">Team of 10</option>
+                        <option value="hub_team_25">Team of 25</option>
+                    </select>
+                    <?php 
+                    $team_configs = [
+                        5 => ['price' => 22, 'size' => 5],
+                        6 => ['price' => 40, 'size' => 10],
+                        7 => ['price' => 95, 'size' => 25]
+                    ];
+                    foreach ($team_configs as $id => $config): ?>
+                        <div id="hub_team_<?= $config['size'] ?>" class="hub-team-options" style="<?= $id === 5 ? 'display:block;' : '' ?>">
+                            <h4><?= esc_html($plans[$id]) ?></h4>
+                            <?= get_team_discount_badge($config['price'], $config['size']) ?>
+                            <?= render_plan_features($features[$id]) ?>
+                            <a href="/membership-checkout/?level=<?= $id ?>" class="fm-btn">Choose <?= esc_html($plans[$id]) ?></a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <div id="tab-enterprise" class="fm-grid" style="display:none;">
+                <div class="fm-card">
+                    <h3><?= esc_html($plans[9]) ?></h3>
+                    <?= render_plan_features($features[9]) ?>
+                    <a href="/contact" class="fm-btn">Request Enterprise Plan</a>
+                </div>
+            </div>
+
+            <div id="tab-storage" class="fm-grid" style="display:none;">
+                <?php foreach ([
+                    '50' => 4,
+                    '100' => 7,
+                    '250' => 12,
+                    '500' => 20,
+                    '1000' => 35,
+                    '2000' => 60
+                ] as $gb => $price): ?>
+                    <div class="fm-card">
+                        <h3>+<?= $gb ?> GB Storage</h3>
+                        <p>€<?= $price ?> / month</p>
+                        <a href="/membership-checkout/?level=storage_<?= $gb ?>" class="fm-btn">Add to Plan</a>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         </div>
-
-        <div class="price-calc-row">
-            <label class="price-calc-label">Print Run / Duration</label>
-            <select id="print-select"></select>
-        </div>
-
-        <div class="price-calc-row modifiers-wrap">
-            <label class="price-calc-label">Universal Modifiers</label>
-            <label><input type="checkbox" value="2" class="mod"> Cover +100%</label>
-            <label><input type="checkbox" value="1.5" class="mod"> Rear +50%</label>
-            <label><input type="checkbox" value="0.5" class="mod"> Re-use from earlier license –50%</label>
-            <label><input type="checkbox" value="1.5" class="mod"> Extra licensing period +50%</label>
-        </div>
-
-        <div class="price-calc-row modifiers-wrap">
-            <label class="price-calc-label">Territory Modifiers</label>
-            <label><input type="checkbox" value="1.1" class="region"> +1 Country (10%)</label>
-            <label><input type="checkbox" value="1.25" class="region"> Benelux or Scandinavia (25%)</label>
-            <label><input type="checkbox" value="1.5" class="region"> Europe / LatAm / Asia (50%)</label>
-            <label><input type="checkbox" value="2" class="region"> World / Works (100%)</label>
-        </div>
-
-        <div id="category-modifiers" class="price-calc-row modifiers-wrap"></div>
-
-        <div>
-            <span class="clear-btn" id="clear-modifiers">Clear All Modifiers</span>
-        </div>
-
-        <div class="price-output" id="final-price">Select options to calculate price</div>
-        <div id="category-note" class="price-note"></div>
     </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const catSelect = document.getElementById('cat-select');
-        const usageSelect = document.getElementById('usage-select');
-        const printSelect = document.getElementById('print-select');
-        const output = document.getElementById('final-price');
-        const noteBox = document.getElementById('category-note');
-        const categoryModifiers = document.getElementById('category-modifiers');
-        const clearBtn = document.getElementById('clear-modifiers');
-        let PRICING = {};
-
-        const categoryNotes = {
-            'pricing_brochures': 'Duration: 3 Months.',
-            'pricing_books': 'Includes booklets and programs. Includes Maps. Duration: 5 years.',
-            'pricing_newspapers': 'Duration: 1 year. Use in social media: See Social media pricing.',
-            'pricing_magazines': 'Magazines, Industry and special interest. Duration: 3 years.',
-            'pricing_retail': '3-year rights. For example: Poster, Textile deco, Puzzle, Game, Sticker.',
-            'pricing_online': 'Online magazines and publications.',
-            'pricing_advertising': '',
-            'pricing_outdoor': 'Outdoor / POS / Abri. City poster: 10 days. Wall: 1 month. POS: 3 months.',
-            'pricing_tv': '',
-            'pricing_press_release': ''
-        };
-
-        const extraModifiers = {
-            'pricing_brochures': [{ label: 'Travel –50%', value: 0.5 }],
-            'pricing_books': [
-                { label: 'Reprint as eBook +50%', value: 1.5 },
-                { label: 'Combined license –50%', value: 0.5 },
-                { label: 'Back cover +80%', value: 1.8 },
-                { label: 'Small image as main +100%', value: 2 }
-            ],
-            'pricing_magazines': [{ label: 'Small image as main +100%', value: 2 }],
-            'pricing_online': [
-                { label: 'Blogs / Intranet –20%', value: 0.8 },
-                { label: 'Renewal +50%', value: 1.5 },
-                { label: 'Multi-domain: 2–5 sites +25%', value: 1.25 },
-                { label: '6–10 sites +35%', value: 1.35 },
-                { label: '11–20 sites +50%', value: 1.5 }
-            ],
-            'pricing_advertising': [
-                { label: '4–7 media +25%', value: 1.25 },
-                { label: '9–12 media +35%', value: 1.35 },
-                { label: '13–22 media +50%', value: 1.5 },
-                { label: 'Back cover +50%', value: 1.5 }
-            ],
-            'pricing_outdoor': [
-                { label: '2–4 months +50%', value: 1.5 },
-                { label: '5–9 months +100%', value: 2 },
-                { label: 'Over 10 months +200%', value: 3 },
-                { label: 'Projections –50%', value: 0.5 },
-                { label: 'Editorial –70%', value: 0.3 }
-            ],
-            'pricing_retail': [{ label: 'Extra image –50%', value: 0.5 }]
-        };
-
-        function updateCategoryNote(slug) {
-            const note = categoryNotes[slug] || '';
-            noteBox.innerHTML = note ? `<i>${note}</i>` : '';
-            noteBox.style.display = note ? 'block' : 'none';
-        }
-
-        function updateCategoryModifiers(slug) {
-            const modifiers = extraModifiers[slug] || [];
-            categoryModifiers.innerHTML = '';
-            if (!modifiers.length) {
-                categoryModifiers.style.display = 'none';
-                return;
-            }
-            categoryModifiers.style.display = 'block';
-            const label = document.createElement('label');
-            label.className = 'price-calc-label';
-            label.textContent = 'Category-Specific Modifiers';
-            categoryModifiers.appendChild(label);
-            modifiers.forEach(mod => {
-                const line = document.createElement('label');
-                line.innerHTML = `<input type="checkbox" value="${mod.value}" class="mod"> ${mod.label}`;
-                categoryModifiers.appendChild(line);
-            });
-        }
-
-        function populateUsage() {
-            usageSelect.innerHTML = '';
-            printSelect.innerHTML = '';
-            const usages = Object.keys(PRICING);
-            usages.forEach(u => {
-                const opt = document.createElement('option');
-                opt.value = u;
-                opt.textContent = u;
-                usageSelect.appendChild(opt);
-            });
-            if (usages.length) populatePrint(usages[0]);
-        }
-
-        function populatePrint(usage) {
-            printSelect.innerHTML = '';
-            const entries = PRICING[usage] || [];
-            entries.forEach(e => {
-                const opt = document.createElement('option');
-                opt.value = e.price;
-                opt.textContent = e.print_run;
-                printSelect.appendChild(opt);
-            });
-            updatePrice();
-        }
-
-        function updatePrice() {
-            let base = parseFloat(printSelect.value);
-            if (isNaN(base)) return output.innerHTML = '<b>📩 Please contact us for a quote</b>';
-            let total = base;
-            document.querySelectorAll('.mod:checked').forEach(cb => total *= parseFloat(cb.value));
-            document.querySelectorAll('.region:checked').forEach(cb => total *= parseFloat(cb.value));
-            output.innerHTML = `<b>Estimated Price: €${total.toFixed(2)}</b>`;
-        }
-
-        catSelect.onchange = () => {
-            const slug = catSelect.value;
-            if (!slug) return;
-            updateCategoryNote(slug);
-            updateCategoryModifiers(slug);
-            fetch(`/wp-admin/admin-ajax.php?action=solwee_get_pricing&file=${slug}`)
-                .then(res => res.json())
-                .then(data => {
-                    PRICING = data;
-                    populateUsage();
-                })
-                .catch(err => console.error('Failed to load pricing data:', err));
-        };
-
-        usageSelect.onchange = () => populatePrint(usageSelect.value);
-        printSelect.onchange = updatePrice;
-        document.addEventListener('change', function (e) {
-            if (e.target.matches('.mod, .region')) updatePrice();
-        });
-
-        clearBtn.addEventListener('click', function () {
-            document.querySelectorAll('.mod:checked, .region:checked').forEach(cb => cb.checked = false);
-            updatePrice();
-        });
-    });
+    function fmShowTab(key) {
+        document.querySelectorAll('.fm-tab').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('[id^="tab-"]').forEach(tab => tab.style.display = 'none');
+        document.querySelector(`[onclick*="'${key}'"]`).classList.add('active');
+        document.getElementById('tab-' + key).style.display = 'grid';
+    }
     </script>
     <?php
     return ob_get_clean();
-});
-
-add_action('wp_ajax_solwee_get_pricing', function () {
-    $file = sanitize_file_name($_GET['file'] ?? '');
-    $base = ABSPATH . 'wp-content/uploads/';
-    $path = realpath($base . $file . '.php');
-    if (!$path || strpos($path, $base) !== 0 || !file_exists($path)) {
-        wp_send_json([]);
-    }
-    $data = include $path;
-    wp_send_json($data);
-});
-
-add_action('wp_ajax_nopriv_solwee_get_pricing', function () {
-    do_action('wp_ajax_solwee_get_pricing');
 });
